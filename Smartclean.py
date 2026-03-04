@@ -46,8 +46,8 @@ werkzeug_logger.setLevel(logging.INFO)
 # ==============================================================================
 # INITIALISATION FLASK
 # ==============================================================================
-
-app = Flask(__name__)
+import os
+app = Flask(__name__, template_folder=os.path.dirname(os.path.abspath(__file__)))
 
 _secret = os.environ.get('SECRET_KEY')
 if not _secret:
