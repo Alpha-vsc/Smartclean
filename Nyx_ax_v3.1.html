@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartClean V3.1 | DSIA Project</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); min-height: 100vh; font-family: 'Segoe UI', sans-serif; }
+        .card-upload { border-radius: 20px; border: none; transition: 0.3s; background: rgba(255, 255, 255, 0.95); }
+        .card-upload:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
+        .btn-primary { background: #1a2a6c; border: none; }
+        .btn-primary:hover { background: #003366; }
+        
+        .menu-toggle {
+            background: none;
+            border: none;
+            width: 30px;
+            height: 22px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            cursor: pointer;
+            padding: 0;
+        }
+        .menu-toggle span {
+            display: block;
+            width: 100%;
+            height: 3px;
+            background-color: white;
+            border-radius: 2px;
+        }
+
+        .sidebar { 
+            height: 100%; width: 0; position: fixed; top: 0; left: 0; 
+            background-color: #ffffff; box-shadow: 2px 0 10px rgba(0,0,0,0.1); 
+            overflow-x: hidden; transition: 0.3s; z-index: 2000; 
+            display: flex; flex-direction: column;
+        }
+        .sidebar-content { flex-grow: 1; }
+        .sidebar a { padding: 15px 25px; text-decoration: none; font-size: 1rem; color: #091545; display: flex; align-items: center; transition: 0.2s; cursor: pointer; }
+        .sidebar a i { width: 30px; font-size: 1.2rem; }
+        .sidebar a:hover { background-color: #b2d3e2; }
+        .sidebar a.active { background-color: #1a2a6c; color: white; }
+        .sidebar-top { background: #1a2a6c; color: white; padding: 30px 20px; margin: 0; }
+        .sidebar-footer { padding: 20px; border-top: 1px solid #eee; margin-top: auto; }
+
+        .text-primary-custom { color: #007bff !important; }
+        .feature-item { display: flex; align-items: center; margin-bottom: 10px; }
+        .feature-icon-green { color: #28a745; margin-right: 15px; font-size: 1.3rem; }
+        
+        input[type="file"]::file-selector-button { background: #1a2a6c; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-right: 15px; }
+        
+        .page-section { display: none; }
+        .page-section.active { display: block; }
+        
+        .stat-card { 
+            background: white; 
+            border-radius: 15px; 
+            padding: 20px; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08); 
+            margin-bottom: 20px;
+            transition: 0.3s;
+        }
+        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.12); }
+        .stat-value { font-size: 2.5rem; font-weight: bold; color: #1a2a6c; }
+        .stat-label { color: #6c757d; font-size: 0.9rem; text-transform: uppercase; }
+        
+        .history-table { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.08); }
+        .table thead { background: #1a2a6c; color: white; }
+        .badge-operation { font-size: 0.75rem; padding: 5px 10px; margin: 2px; }
+        
+        .delete-btn { cursor: pointer; color: #dc3545; transition: 0.2s; }
+        .delete-btn:hover { color: #a02622; transform: scale(1.1); }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark shadow-sm mb-5" style="background: #1a2a6c;">
+
+    <!-- Sidebar (fixed, hors du flux) -->
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-top mb-3">
+            <h4 class="text-white fw-bold mb-3">SmartClean</h4>
+            <p class="small text-white-50">An advanced pipeline to automate data cleaning and normalization.</p>
+        </div>
+        <div class="sidebar-content">
+            <a onclick="showPage('home')" id="nav-home" class="active"><i class="fas fa-house"></i> Home</a>
+            <a onclick="showPage('history')" id="nav-history"><i class="fas fa-clock-rotate-left"></i> History</a>
+            <a onclick="showPage('statistics')" id="nav-statistics"><i class="fas fa-chart-line"></i> Statistics</a>
+            <a href="{{ url_for('settings') }}" id="nav-settings"><i class="fas fa-gear"></i> Settings</a>
+            {% if user.role == 'admin' %}
+            <a href="{{ url_for('admin_dashboard') }}" id="nav-admin"><i class="fas fa-user-shield"></i> Admin Dashboard</a>
+            {% endif %}
+        </div>
+        <div class="sidebar-footer">
+            <p class="small text-muted mb-0">By Alpha O. Diallo & Aicha Diop</p>
+        </div>
+    </div>
+
+    <!-- Barre de navigation : hamburger + titre + user info sur une seule ligne -->
+    <div class="container-fluid d-flex align-items-center px-3" style="height: 64px;">
+
+        <!-- Bouton hamburger -->
+        <button class="menu-toggle me-3 flex-shrink-0" id="menuBtn" onclick="toggleSidebar()">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+
+        <!-- Titre (prend tout l'espace disponible) -->
+        <span class="navbar-brand h1 mb-0 me-auto">📊 SmartClean</span>
+
+        <!-- Infos utilisateur + Logout -->
+        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+            <span class="text-white">
+                <i class="fas fa-user-circle me-1"></i>
+                <strong>{{ user.full_name or user.username }}</strong>
+                {% if user.role == 'admin' %}
+                    <span class="badge bg-warning text-dark ms-1">Admin</span>
+                {% endif %}
+            </span>
+            <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light">
+                <i class="fas fa-sign-out-alt me-1"></i> Logout
+            </a>
+        </div>
+
+    </div>
+</nav>
+
+<div class="container">
+    <!-- HOME PAGE -->
+    <div id="page-home" class="page-section active">
+        <div class="row align-items-center">
+            <div class="col-lg-5 d-none d-lg-block pe-5">
+                <h1 class="display-4 fw-bold mb-2">SmartClean</h1>
+                <h1 class="display-4 fw-bold text-primary-custom mb-4">Engine</h1>
+                <p class="lead mb-4">An advanced pipeline for Data Science students to automate data cleaning and normalization.</p>
+                
+                <div class="mt-4">
+                    <div class="feature-item">
+                        <i class="fas fa-circle-check feature-icon-green"></i>
+                        <span><strong>Missing Values:</strong> Automatic mean/mode imputation.</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-circle-check feature-icon-green"></i>
+                        <span><strong>Outlier Detection:</strong> Using Interquartile Range (IQR).</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-circle-check feature-icon-green"></i>
+                        <span><strong>Normalization:</strong> Min-Max scaling for ML readiness.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-7">
+                <div class="card card-upload shadow-lg p-4">
+                    <div class="card-body">
+                        <h3 class="text-center mb-4">Processing Dashboard</h3>
+
+                        <div id="inline-alert" class="collapse">
+                            <div class="alert alert-danger d-flex align-items-center mb-3" role="alert">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <div id="error-message-text"></div>
+                            </div>
+                        </div>
+
+                        <form action="/preview" method="post" enctype="multipart/form-data" id="cleanForm">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Select Dataset (CSV, Excel, JSON, XML)</label>
+                                <input type="file" name="file" class="form-control" required>
+                            </div>
+
+                            <div class="row g-3 mb-4">
+                                <div class="col-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="missing_values" id="mv" {% if settings.default_missing %}checked{% else %}checked{% endif %}>
+                                        <label class="form-check-label" for="mv">Missing Values</label>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="duplicates" id="dup" {% if settings.default_duplicates %}checked{% endif %}>
+                                        <label class="form-check-label" for="dup">Remove Duplicates</label>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="outliers" id="out" {% if settings.default_outliers %}checked{% endif %}>
+                                        <label class="form-check-label" for="out">Remove Outliers</label>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="normalize" id="norm" {% if settings.default_normalize %}checked{% endif %}>
+                                        <label class="form-check-label" for="norm">Normalize Data</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Select Output Format</label>
+                                <select name="output_format" id="outputFormat" class="form-select">
+                                    <option value="csv" {% if settings.default_format == 'csv' %}selected{% endif %}>CSV (Comma Separated)</option>
+                                    <option value="xlsx" {% if settings.default_format == 'xlsx' %}selected{% endif %}>Excel (XLSX)</option>
+                                    <option value="json" {% if settings.default_format == 'json' %}selected{% endif %}>JSON</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-100 btn-lg py-3" onclick="startLoading(this)">
+                                <i class="fas fa-play-circle me-2"></i> Process & Download
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HISTORY PAGE -->
+    <div id="page-history" class="page-section">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold"><i class="fas fa-clock-rotate-left me-2"></i> Processing History</h2>
+            <button class="btn btn-danger" onclick="clearHistory()">
+                <i class="fas fa-trash me-2"></i> Clear All History
+            </button>
+        </div>
+
+        <div class="history-table">
+            <table class="table table-hover mb-0" id="historyTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Filename</th>
+                        <th>Rows</th>
+                        <th>Columns</th>
+                        <th>Operations</th>
+                        <th>Format</th>
+                        <th>Time (s)</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- STATISTICS PAGE -->
+    <div id="page-statistics" class="page-section">
+        <h2 class="fw-bold mb-4"><i class="fas fa-chart-line me-2"></i> Statistics</h2>
+        
+        <div class="row" id="statisticsContainer">
+            <div class="col-md-3 col-sm-6">
+                <div class="stat-card text-center">
+                    <div class="stat-value" id="stat-files">0</div>
+                    <div class="stat-label">Files Processed</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="stat-card text-center">
+                    <div class="stat-value" id="stat-rows">0</div>
+                    <div class="stat-label">Total Rows</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="stat-card text-center">
+                    <div class="stat-value" id="stat-time">0s</div>
+                    <div class="stat-label">Avg Processing Time</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="stat-card text-center">
+                    <div class="stat-value" id="stat-operations">0</div>
+                    <div class="stat-label">Total Operations</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="stat-card">
+                    <h5 class="mb-4"><i class="fas fa-wrench me-2"></i> Operations Usage</h5>
+                    <div id="operationsChart">
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Missing Values</span>
+                                <span id="op-missing">0</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-success" id="op-missing-bar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Remove Duplicates</span>
+                                <span id="op-duplicates">0</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-info" id="op-duplicates-bar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Remove Outliers</span>
+                                <span id="op-outliers">0</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-warning" id="op-outliers-bar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Normalization</span>
+                                <span id="op-normalize">0</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-danger" id="op-normalize-bar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="stat-card">
+                    <h5 class="mb-4"><i class="fas fa-info-circle me-2"></i> System Information</h5>
+                    <p><strong>Database Status:</strong> <span class="badge bg-success">Active</span></p>
+                    <p><strong>Last Update:</strong> <span id="last-update">--</span></p>
+                    <p><strong>Total Records:</strong> <span id="total-records">0</span></p>
+                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="loadStatistics()">
+                        <i class="fas fa-sync me-1"></i> Refresh Stats
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <p class="text-center mt-5 text-muted small">© 2026 - ISI DSIA</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Page Navigation
+    function showPage(pageName) {
+        document.querySelectorAll('.page-section').forEach(section => {
+            section.classList.remove('active');
+        });
+        document.querySelectorAll('.sidebar a').forEach(link => {
+            link.classList.remove('active');
+        });
+        
+        document.getElementById('page-' + pageName).classList.add('active');
+        document.getElementById('nav-' + pageName).classList.add('active');
+        
+        if (pageName === 'history') {
+            loadHistory();
+        } else if (pageName === 'statistics') {
+            loadStatistics();
+        }
+        
+        // Close sidebar on mobile
+        if (window.innerWidth < 992) {
+            toggleSidebar();
+        }
+    }
+
+    // Load History
+    async function loadHistory() {
+        try {
+            const response = await fetch('/history');
+            const history = await response.json();
+            
+            const tbody = document.getElementById('historyTableBody');
+            if (history.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No processing history yet</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = history.map(item => {
+                const operations = [];
+                if (item.missing_values_applied) operations.push('<span class="badge bg-success badge-operation">Missing Values</span>');
+                if (item.duplicates_applied) operations.push('<span class="badge bg-info badge-operation">Duplicates</span>');
+                if (item.outliers_applied) operations.push('<span class="badge bg-warning badge-operation">Outliers</span>');
+                if (item.normalize_applied) operations.push('<span class="badge bg-danger badge-operation">Normalize</span>');
+                
+                const date = new Date(item.processing_date);
+                const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                
+                return `
+                    <tr>
+                        <td>${dateStr}</td>
+                        <td><strong>${item.filename}</strong><br><small class="text-muted">${item.file_size_kb} KB</small></td>
+                        <td>${item.original_rows} → ${item.processed_rows}</td>
+                        <td>${item.original_columns} → ${item.processed_columns}</td>
+                        <td>${operations.join(' ')}</td>
+                        <td><span class="badge bg-secondary">${item.output_format.toUpperCase()}</span></td>
+                        <td>${item.processing_time_seconds}s</td>
+                        <td><i class="fas fa-trash delete-btn" onclick="deleteHistoryItem(${item.id})"></i></td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (e) {
+            console.error('Error loading history:', e);
+        }
+    }
+
+    // Load Statistics
+    async function loadStatistics() {
+        try {
+            const response = await fetch('/statistics');
+            const stats = await response.json();
+            
+            document.getElementById('stat-files').textContent = stats.total_files;
+            document.getElementById('stat-rows').textContent = stats.total_rows.toLocaleString();
+            document.getElementById('stat-time').textContent = stats.avg_processing_time + 's';
+            
+            const totalOps = stats.operations.missing_values + stats.operations.duplicates + 
+                           stats.operations.outliers + stats.operations.normalize;
+            document.getElementById('stat-operations').textContent = totalOps;
+            
+            // Update operations chart
+            const maxOp = Math.max(stats.operations.missing_values, stats.operations.duplicates,
+                                  stats.operations.outliers, stats.operations.normalize);
+            
+            document.getElementById('op-missing').textContent = stats.operations.missing_values;
+            document.getElementById('op-missing-bar').style.width = (stats.operations.missing_values / maxOp * 100) + '%';
+            
+            document.getElementById('op-duplicates').textContent = stats.operations.duplicates;
+            document.getElementById('op-duplicates-bar').style.width = (stats.operations.duplicates / maxOp * 100) + '%';
+            
+            document.getElementById('op-outliers').textContent = stats.operations.outliers;
+            document.getElementById('op-outliers-bar').style.width = (stats.operations.outliers / maxOp * 100) + '%';
+            
+            document.getElementById('op-normalize').textContent = stats.operations.normalize;
+            document.getElementById('op-normalize-bar').style.width = (stats.operations.normalize / maxOp * 100) + '%';
+            
+            document.getElementById('last-update').textContent = new Date().toLocaleString();
+            document.getElementById('total-records').textContent = stats.total_files;
+        } catch (e) {
+            console.error('Error loading statistics:', e);
+        }
+    }
+
+    // Token CSRF pour les appels fetch
+    const CSRF_TOKEN = "{{ csrf_token() }}";
+
+    // Delete History Item
+    async function deleteHistoryItem(id) {
+        if (!confirm('Are you sure you want to delete this history item?')) return;
+        
+        try {
+            const response = await fetch(`/delete_history/${id}`, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-Token': CSRF_TOKEN }
+            });
+            if (response.ok) {
+                loadHistory();
+                alert('History item deleted successfully');
+            }
+        } catch (e) {
+            alert('Error deleting history item');
+        }
+    }
+
+    // Clear All History
+    async function clearHistory() {
+        if (!confirm('Are you sure you want to clear all history? This action cannot be undone.')) return;
+        
+        try {
+            const response = await fetch('/clear_history', {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': CSRF_TOKEN }
+            });
+            if (response.ok) {
+                loadHistory();
+                alert('All history cleared successfully');
+            }
+        } catch (e) {
+            alert('Error clearing history');
+        }
+    }
+
+    // File Upload Handler
+    function startLoading(btn) {
+        const form = btn.form;
+        const alertDiv = document.getElementById('inline-alert');
+
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        alertDiv.classList.remove('show');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processing...';
+
+        // Submit the form to /preview (Flask handles the redirect to preview.html)
+        form.submit();
+    }
+
+    function resetBtn(btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play-circle me-2"></i> Process & Download';
+    }
+
+    // Restore button state when user navigates back (browser back button from preview)
+    window.addEventListener('pageshow', function(event) {
+        const btn = document.querySelector('#cleanForm button[type="submit"]');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-play-circle me-2"></i> Process & Download';
+        }
+        // Also reset the file input so a new file can be selected cleanly
+        const fileInput = document.querySelector('#cleanForm input[type="file"]');
+        if (fileInput) fileInput.value = '';
+    });
+
+    // Sidebar Toggle
+    let sidebarOpen = false;
+    function toggleSidebar() {
+        const sidebar = document.getElementById("sidebar");
+        if (!sidebarOpen) {
+            sidebar.style.width = "280px";
+            sidebarOpen = true;
+        } else {
+            sidebar.style.width = "0";
+            sidebarOpen = false;
+        }
+    }
+
+    document.addEventListener('click', function(event) {
+        const sidebar = document.getElementById("sidebar");
+        const btn = document.getElementById("menuBtn");
+        if (sidebarOpen && !sidebar.contains(event.target) && !btn.contains(event.target)) {
+            toggleSidebar();
+        }
+    });
+</script>
+</body>
+</html>

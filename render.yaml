@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: smartclean
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn Smartclean:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: HTTPS
+        value: "true"
+      - key: FLASK_DEBUG
+        value: "false"
+    disk:
+      name: smartclean-data
+      mountPath: /opt/render/project/src
+      sizeGB: 1

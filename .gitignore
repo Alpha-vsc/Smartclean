@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.db
+uploads/
+temp_previews/
+smartclean_security.log
+.DS_Store
+*.pkl

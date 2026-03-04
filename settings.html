@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - SmartClean V3.1</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        
+        .settings-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .settings-header {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            margin-bottom: 30px;
+        }
+        
+        .settings-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            margin-bottom: 20px;
+        }
+        
+        .settings-section h4 {
+            color: #1a2a6c;
+            border-bottom: 2px solid #1a2a6c;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .form-check {
+            margin-bottom: 15px;
+        }
+        
+        .form-check-label {
+            font-weight: 500;
+        }
+        
+        .form-check-input:checked {
+            background-color: #1a2a6c;
+            border-color: #1a2a6c;
+        }
+        
+        .btn-save {
+            background: #1a2a6c;
+            border: none;
+            padding: 12px 40px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-save:hover {
+            background: #2d4a9a;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(26, 42, 108, 0.3);
+        }
+        
+        .btn-back {
+            background: #6c757d;
+            border: none;
+            padding: 12px 40px;
+            font-weight: 600;
+        }
+        
+        .btn-back:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="settings-container">
+        
+        <!-- Header -->
+        <div class="settings-header">
+            <h2><i class="fas fa-gear me-2"></i> Settings</h2>
+            <p class="text-muted mb-0">Configure your preferences</p>
+        </div>
+        
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <form method="POST" action="{{ url_for('save_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <!-- General Settings -->
+            <div class="settings-section">
+                <h4><i class="fas fa-sliders me-2"></i> General</h4>
+                
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="always_preview" id="always_preview" 
+                           {% if settings.always_preview %}checked{% endif %}>
+                    <label class="form-check-label" for="always_preview">
+                        Always show preview before download
+                    </label>
+                </div>
+                
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="save_history" id="save_history" 
+                           {% if settings.save_history %}checked{% endif %}>
+                    <label class="form-check-label" for="save_history">
+                        Save processing history
+                    </label>
+                </div>
+                
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="confirm_delete" id="confirm_delete" 
+                           {% if settings.confirm_delete %}checked{% endif %}>
+                    <label class="form-check-label" for="confirm_delete">
+                        Ask confirmation before deleting history
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Default Processing Options -->
+            <div class="settings-section">
+                <h4><i class="fas fa-cogs me-2"></i> Default Processing Options</h4>
+                <p class="text-muted small">These options will be pre-selected when you upload a file</p>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="default_missing" id="default_missing" 
+                           {% if settings.default_missing %}checked{% endif %}>
+                    <label class="form-check-label" for="default_missing">
+                        <i class="fas fa-question-circle me-1"></i> Always handle missing values
+                    </label>
+                </div>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="default_duplicates" id="default_duplicates" 
+                           {% if settings.default_duplicates %}checked{% endif %}>
+                    <label class="form-check-label" for="default_duplicates">
+                        <i class="fas fa-copy me-1"></i> Always remove duplicates
+                    </label>
+                </div>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="default_outliers" id="default_outliers" 
+                           {% if settings.default_outliers %}checked{% endif %}>
+                    <label class="form-check-label" for="default_outliers">
+                        <i class="fas fa-chart-line me-1"></i> Always detect outliers
+                    </label>
+                </div>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="default_normalize" id="default_normalize" 
+                           {% if settings.default_normalize %}checked{% endif %}>
+                    <label class="form-check-label" for="default_normalize">
+                        <i class="fas fa-balance-scale me-1"></i> Always normalize data
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Preferences -->
+            <div class="settings-section">
+                <h4><i class="fas fa-palette me-2"></i> Preferences</h4>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Default export format</label>
+                    <select class="form-select" name="default_format">
+                        <option value="csv" {% if settings.default_format == 'csv' %}selected{% endif %}>CSV (.csv)</option>
+                        <option value="xlsx" {% if settings.default_format == 'xlsx' %}selected{% endif %}>Excel (.xlsx)</option>
+                        <option value="json" {% if settings.default_format == 'json' %}selected{% endif %}>JSON (.json)</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Number of rows in preview</label>
+                    <select class="form-select" name="preview_rows">
+                        <option value="5" {% if settings.preview_rows == 5 %}selected{% endif %}>5 rows</option>
+                        <option value="10" {% if settings.preview_rows == 10 %}selected{% endif %}>10 rows</option>
+                        <option value="20" {% if settings.preview_rows == 20 %}selected{% endif %}>20 rows</option>
+                        <option value="50" {% if settings.preview_rows == 50 %}selected{% endif %}>50 rows</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="d-flex gap-2 justify-content-center">
+                <button type="submit" class="btn btn-primary btn-save">
+                    <i class="fas fa-save me-2"></i> Save Settings
+                </button>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary btn-back">
+                    <i class="fas fa-arrow-left me-2"></i> Back
+                </a>
+            </div>
+            
+        </form>
+        
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

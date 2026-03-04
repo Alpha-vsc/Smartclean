@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - SmartClean API</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
+            min-height: 100vh; 
+            font-family: 'Segoe UI', sans-serif; 
+        }
+        
+        .stat-card { 
+            background: white; 
+            border-radius: 15px; 
+            padding: 25px; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08); 
+            margin-bottom: 20px;
+            transition: 0.3s;
+        }
+        .stat-card:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15); 
+        }
+        
+        .stat-value { 
+            font-size: 2.8rem; 
+            font-weight: bold; 
+            color: #1a2a6c; 
+        }
+        .stat-label { 
+            color: #6c757d; 
+            font-size: 0.95rem; 
+            text-transform: uppercase; 
+            font-weight: 600;
+        }
+        .stat-icon {
+            font-size: 3rem;
+            opacity: 0.1;
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .card-primary { border-left: 5px solid #007bff; }
+        .card-success { border-left: 5px solid #28a745; }
+        .card-warning { border-left: 5px solid #ffc107; }
+        .card-danger { border-left: 5px solid #dc3545; }
+        
+        .content-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            margin-bottom: 30px;
+        }
+        
+        .table-custom {
+            background: white;
+        }
+        
+        .table-custom thead {
+            background: #1a2a6c;
+            color: white;
+        }
+        
+        .badge-active {
+            background: #28a745;
+        }
+        
+        .badge-inactive {
+            background: #dc3545;
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #1a2a6c;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .activity-item {
+            border-left: 3px solid #1a2a6c;
+            padding-left: 15px;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .activity-time {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .btn-action {
+            padding: 5px 10px;
+            font-size: 0.85rem;
+        }
+        
+        .navbar-custom {
+            background: #1a2a6c;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark navbar-custom mb-4">
+    <div class="container-fluid">
+        <span class="navbar-brand">
+            <i class="fas fa-user-shield me-2"></i>
+            Admin Dashboard
+        </span>
+        <div class="d-flex align-items-center">
+            <span class="text-white me-3">
+                <i class="fas fa-user-circle me-2"></i>
+                <strong>{{ user.full_name or user.username }}</strong>
+            </span>
+            <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-light me-2">
+                <i class="fas fa-home me-1"></i> Main App
+            </a>
+            <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light">
+                <i class="fas fa-sign-out-alt me-1"></i> Logout
+            </a>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid px-4">
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card card-primary position-relative">
+                <i class="fas fa-users stat-icon"></i>
+                <div class="stat-value" id="total-users">0</div>
+                <div class="stat-label">Total Users</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card card-success position-relative">
+                <i class="fas fa-user-check stat-icon"></i>
+                <div class="stat-value" id="active-users">0</div>
+                <div class="stat-label">Active Users (7 days)</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card card-warning position-relative">
+                <i class="fas fa-server stat-icon"></i>
+                <div class="stat-value" id="total-api-calls">0</div>
+                <div class="stat-label">Total API Calls</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card card-danger position-relative">
+                <i class="fas fa-chart-line stat-icon"></i>
+                <div class="stat-value" id="api-calls-today">0</div>
+                <div class="stat-label">API Calls Today</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="content-card">
+                <h5 class="mb-4">
+                    <i class="fas fa-chart-area me-2 text-primary"></i>
+                    API Usage (Last 30 Days)
+                </h5>
+                <div class="chart-container">
+                    <canvas id="usageChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="content-card">
+                <h5 class="mb-4">
+                    <i class="fas fa-trophy me-2 text-warning"></i>
+                    Top Users
+                </h5>
+                <div id="topUsersList">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users Management -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="content-card">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users-cog me-2 text-primary"></i>
+                        Users Management
+                    </h5>
+                    <button class="btn btn-primary btn-sm" onclick="loadAdminStats()">
+                        <i class="fas fa-sync me-1"></i> Refresh
+                    </button>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-hover table-custom" id="usersTable">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Created</th>
+                                <th>Last Login</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="content-card">
+                <h5 class="mb-4">
+                    <i class="fas fa-history me-2 text-info"></i>
+                    Recent Activity
+                </h5>
+                <div id="recentActivityList">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    let usageChart = null;
+
+    // Load admin statistics
+    async function loadAdminStats() {
+        try {
+            const response = await fetch('/admin/statistics');
+            const data = await response.json();
+            
+            // Update stats cards
+            document.getElementById('total-users').textContent = data.total_users;
+            document.getElementById('active-users').textContent = data.active_users;
+            document.getElementById('total-api-calls').textContent = data.total_api_calls;
+            document.getElementById('api-calls-today').textContent = data.api_calls_today;
+            
+            // Update usage chart
+            updateUsageChart(data.usage_by_day);
+            
+            // Update top users
+            updateTopUsers(data.top_users);
+            
+            // Update users table
+            updateUsersTable(data.users_list);
+            
+            // Update recent activity
+            updateRecentActivity(data.recent_activity);
+            
+        } catch (e) {
+            console.error('Error loading admin statistics:', e);
+        }
+    }
+
+    // Update usage chart
+    function updateUsageChart(usageData) {
+        const ctx = document.getElementById('usageChart').getContext('2d');
+        
+        // Reverse to show oldest to newest
+        usageData.reverse();
+        
+        const labels = usageData.map(d => {
+            const date = new Date(d.date);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        });
+        const values = usageData.map(d => d.count);
+        
+        if (usageChart) {
+            usageChart.destroy();
+        }
+        
+        usageChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'API Calls',
+                    data: values,
+                    borderColor: '#1a2a6c',
+                    backgroundColor: 'rgba(26, 42, 108, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Update top users
+    function updateTopUsers(topUsers) {
+        const container = document.getElementById('topUsersList');
+        
+        if (topUsers.length === 0) {
+            container.innerHTML = '<p class="text-muted text-center">No data yet</p>';
+            return;
+        }
+        
+        container.innerHTML = topUsers.map((user, index) => `
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-primary me-3">${index + 1}</span>
+                    <div>
+                        <strong>${user.full_name || user.username}</strong><br>
+                        <small class="text-muted">@${user.username}</small>
+                    </div>
+                </div>
+                <span class="badge bg-success">${user.count} calls</span>
+            </div>
+        `).join('');
+    }
+
+    // Update users table
+    function updateUsersTable(usersList) {
+        const tbody = document.getElementById('usersTableBody');
+        
+        if (usersList.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No users found</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = usersList.map(user => {
+            const createdDate = new Date(user.created_at).toLocaleDateString();
+            const lastLogin = user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never';
+            const initials = (user.full_name || user.username).substring(0, 2).toUpperCase();
+            
+            return `
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div class="user-avatar me-2">${initials}</div>
+                            <div>
+                                <strong>${user.full_name || user.username}</strong><br>
+                                <small class="text-muted">@${user.username}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${user.email}</td>
+                    <td>
+                        ${user.role === 'admin' ? '<span class="badge bg-warning text-dark">Admin</span>' : '<span class="badge bg-secondary">User</span>'}
+                    </td>
+                    <td>${createdDate}</td>
+                    <td>${lastLogin}</td>
+                    <td>
+                        <span class="badge ${user.is_active ? 'badge-active' : 'badge-inactive'}">
+                            ${user.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                    </td>
+                    <td>
+                        ${user.role !== 'admin' ? `
+                            <button class="btn btn-sm btn-${user.is_active ? 'warning' : 'success'} btn-action me-1" 
+                                    onclick="toggleUserStatus(${user.id}, ${user.is_active})">
+                                <i class="fas fa-${user.is_active ? 'ban' : 'check'}"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger btn-action" onclick="deleteUser(${user.id}, '${user.username}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        ` : '<span class="text-muted">-</span>'}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // Update recent activity
+    function updateRecentActivity(activityList) {
+        const container = document.getElementById('recentActivityList');
+        
+        if (activityList.length === 0) {
+            container.innerHTML = '<p class="text-muted text-center">No recent activity</p>';
+            return;
+        }
+        
+        container.innerHTML = activityList.map(activity => {
+            const time = new Date(activity.timestamp).toLocaleString();
+            let icon = 'circle';
+            let color = 'primary';
+            
+            if (activity.action === 'LOGIN') {
+                icon = 'sign-in-alt';
+                color = 'success';
+            } else if (activity.action === 'LOGOUT') {
+                icon = 'sign-out-alt';
+                color = 'secondary';
+            } else if (activity.action === 'PROCESS_FILE') {
+                icon = 'file-arrow-up';
+                color = 'info';
+            } else if (activity.action === 'ERROR') {
+                icon = 'exclamation-triangle';
+                color = 'danger';
+            }
+            
+            return `
+                <div class="activity-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <i class="fas fa-${icon} text-${color} me-2"></i>
+                            <strong>${activity.username}</strong>
+                            <span class="text-muted">${activity.action}</span>
+                            ${activity.details ? `<br><small class="ms-4 text-muted">${activity.details}</small>` : ''}
+                        </div>
+                        <small class="activity-time">${time}</small>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Toggle user status
+    async function toggleUserStatus(userId, currentStatus) {
+        const action = currentStatus ? 'deactivate' : 'activate';
+        if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+        
+        try {
+            const response = await fetch(`/admin/toggle_user/${userId}`, { method: 'POST' });
+            const result = await response.json();
+            
+            if (result.success) {
+                alert(`User ${action}d successfully`);
+                loadAdminStats();
+            } else {
+                alert('Error: ' + result.error);
+            }
+        } catch (e) {
+            alert('Error: ' + e.message);
+        }
+    }
+
+    // Delete user
+    async function deleteUser(userId, username) {
+        if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) return;
+        
+        try {
+            const response = await fetch(`/admin/delete_user/${userId}`, { method: 'DELETE' });
+            const result = await response.json();
+            
+            if (result.success) {
+                alert('User deleted successfully');
+                loadAdminStats();
+            } else {
+                alert('Error: ' + result.error);
+            }
+        } catch (e) {
+            alert('Error: ' + e.message);
+        }
+    }
+
+    // Load data on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadAdminStats();
+        
+        // Auto-refresh every 60 seconds
+        setInterval(loadAdminStats, 60000);
+    });
+</script>
+</body>
+</html>

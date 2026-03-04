@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - SmartClean API</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', sans-serif;
+            padding: 40px 0;
+        }
+        
+        .register-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            max-width: 900px;
+            width: 100%;
+        }
+        
+        .register-left {
+            background: #1a2a6c;
+            color: white;
+            padding: 60px 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .register-right {
+            padding: 60px 40px;
+        }
+        
+        .brand-logo {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+        
+        .brand-title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        
+        .brand-subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin-bottom: 30px;
+        }
+        
+        .benefits-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .benefit-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .benefit-icon {
+            font-size: 1.5rem;
+            margin-right: 15px;
+            color: #fdbb2d;
+        }
+        
+        .form-control:focus {
+            border-color: #1a2a6c;
+            box-shadow: 0 0 0 0.25rem rgba(26, 42, 108, 0.25);
+        }
+        
+        .btn-register {
+            background: #1a2a6c;
+            border: none;
+            padding: 12px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-register:hover {
+            background: #003366;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .form-title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 30px;
+            color: #1a2a6c;
+        }
+        
+        .divider {
+            text-align: center;
+            margin: 20px 0;
+            color: #6c757d;
+        }
+        
+        .input-group-text {
+            background: #f8f9fa;
+            border-right: none;
+        }
+        
+        .form-control {
+            border-left: none;
+        }
+        
+        @media (max-width: 768px) {
+            .register-left {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="register-container">
+            <div class="row g-0">
+                <div class="col-lg-5 register-left">
+                    <div class="brand-logo">
+                        <i class="fas fa-wand-magic-sparkles"></i>
+                    </div>
+                    <h1 class="brand-title">Join SmartClean</h1>
+                    <p class="brand-subtitle">Start processing your data with intelligent automation</p>
+                    
+                    <ul class="benefits-list">
+                        <li class="benefit-item">
+                            <i class="fas fa-check-circle benefit-icon"></i>
+                            <span>Unlimited data processing</span>
+                        </li>
+                        <li class="benefit-item">
+                            <i class="fas fa-check-circle benefit-icon"></i>
+                            <span>Personal history tracking</span>
+                        </li>
+                        <li class="benefit-item">
+                            <i class="fas fa-check-circle benefit-icon"></i>
+                            <span>Advanced statistics</span>
+                        </li>
+                        <li class="benefit-item">
+                            <i class="fas fa-check-circle benefit-icon"></i>
+                            <span>Multiple export formats</span>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="col-lg-7 register-right">
+                    <h2 class="form-title">Create Account</h2>
+                    
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <form method="POST" action="{{ url_for('register') }}" id="registerForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="mb-3">
+                            <label class="form-label">Full Name</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-user"></i>
+                                </span>
+                                <input type="text" name="full_name" class="form-control" placeholder="Enter your full name" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Username</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-at"></i>
+                                </span>
+                                <input type="text" name="username" class="form-control" placeholder="Choose a username" required minlength="3">
+                            </div>
+                            <small class="text-muted">Minimum 3 characters</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-envelope"></i>
+                                </span>
+                                <input type="email" name="email" class="form-control" placeholder="your.email@example.com" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-lock"></i>
+                                </span>
+                                <input type="password" name="password" id="password" class="form-control" placeholder="Create a password" required minlength="6">
+                            </div>
+                            <small class="text-muted">Minimum 6 characters</small>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">Confirm Password</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-lock"></i>
+                                </span>
+                                <input type="password" id="confirm_password" class="form-control" placeholder="Confirm your password" required>
+                            </div>
+                            <div id="passwordError" class="text-danger small mt-1" style="display: none;">
+                                Passwords do not match
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-register w-100">
+                            <i class="fas fa-user-plus me-2"></i> Create Account
+                        </button>
+                        
+                        <div class="divider">
+                            <span>Already have an account?</span>
+                        </div>
+                        
+                        <a href="{{ url_for('login') }}" class="btn btn-outline-secondary w-100">
+                            <i class="fas fa-sign-in-alt me-2"></i> Login
+                        </a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            const errorDiv = document.getElementById('passwordError');
+            
+            if (password !== confirmPassword) {
+                e.preventDefault();
+                errorDiv.style.display = 'block';
+                document.getElementById('confirm_password').classList.add('is-invalid');
+            } else {
+                errorDiv.style.display = 'none';
+                document.getElementById('confirm_password').classList.remove('is-invalid');
+            }
+        });
+        
+        document.getElementById('confirm_password').addEventListener('input', function() {
+            const password = document.getElementById('password').value;
+            const confirmPassword = this.value;
+            const errorDiv = document.getElementById('passwordError');
+            
+            if (password !== confirmPassword) {
+                errorDiv.style.display = 'block';
+                this.classList.add('is-invalid');
+            } else {
+                errorDiv.style.display = 'none';
+                this.classList.remove('is-invalid');
+            }
+        });
+    </script>
+</body>
+</html>
