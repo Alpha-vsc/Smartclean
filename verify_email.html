@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email - SmartClean</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+        * { box-sizing: border-box; }
+        body {
+            background: #020c1b;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            position: relative;
+        }
+        #dataCanvas { position: fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+        .overlay { position: fixed; inset:0; background: radial-gradient(ellipse at 20% 50%, rgba(0,80,200,0.15) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(0,200,255,0.08) 0%, transparent 50%), linear-gradient(180deg, rgba(2,12,27,0.3) 0%, rgba(2,12,27,0.6) 100%); z-index:1; pointer-events:none; }
+        .container { position: relative; z-index: 2; }
+        .verify-card {
+            background: rgba(255,255,255,0.97);
+            border-radius: 20px;
+            box-shadow: 0 0 0 1px rgba(0,150,255,0.15), 0 25px 60px rgba(0,0,0,0.5);
+            padding: 50px 40px;
+            max-width: 480px;
+            width: 100%;
+            text-align: center;
+        }
+        .verify-icon {
+            width: 80px; height: 80px;
+            background: #f0f4ff;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 25px;
+            font-size: 2rem; color: #1a2a6c;
+        }
+        .code-inputs {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 25px 0;
+        }
+        .code-inputs input {
+            width: 50px; height: 60px;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            outline: none;
+            transition: border-color .2s;
+        }
+        .code-inputs input:focus {
+            border-color: #1a2a6c;
+            box-shadow: 0 0 0 3px rgba(26,42,108,.15);
+        }
+        .code-inputs input.filled {
+            border-color: #28a745;
+            background: #f8fff9;
+        }
+        .btn-verify {
+            background: #1a2a6c; border: none;
+            padding: 14px 40px; font-size: 1.1rem;
+            font-weight: 600; width: 100%;
+            transition: all .3s; border-radius: 10px;
+        }
+        .btn-verify:hover {
+            background: #2d4a9a;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(26,42,108,.3);
+        }
+        .resend-link { color: #1a2a6c; cursor: pointer; text-decoration: underline; }
+        #countdown { font-weight: bold; color: #dc3545; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="verify-card mx-auto">
+
+        <div class="verify-icon">
+            <i class="fas fa-envelope-open-text"></i>
+        </div>
+
+        <h3 class="fw-bold mb-2" style="color:#1a2a6c">Check your inbox</h3>
+        <p class="text-muted mb-1">We sent a 6-digit code to</p>
+        <p class="fw-semibold mb-4">{{ email }}</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}{% for cat,msg in messages %}
+                <div class="alert alert-{{ cat }} alert-dismissible fade show text-start mb-3" role="alert">
+                    {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}{% endif %}
+        {% endwith %}
+
+        <!-- Code form -->
+        <form method="POST" action="{{ url_for('verify_email_page') }}" id="verifyForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="code" id="hiddenCode">
+
+            <div class="code-inputs" id="codeInputs">
+                <input type="text" maxlength="1" class="digit" inputmode="numeric" pattern="[0-9]">
+                <input type="text" maxlength="1" class="digit" inputmode="numeric" pattern="[0-9]">
+                <input type="text" maxlength="1" class="digit" inputmode="numeric" pattern="[0-9]">
+                <input type="text" maxlength="1" class="digit" inputmode="numeric" pattern="[0-9]">
+                <input type="text" maxlength="1" class="digit" inputmode="numeric" pattern="[0-9]">
+                <input type="text" maxlength="1" class="digit" inputmode="numeric" pattern="[0-9]">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-verify mb-3">
+                <i class="fas fa-check me-2"></i> Verify & Activate Account
+            </button>
+        </form>
+
+        <p class="text-muted small mb-1">Code expires in <span id="countdown">15:00</span></p>
+
+        <form method="POST" action="{{ url_for('resend_verification') }}" id="resendForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <p class="text-muted small">
+                Didn't receive it?
+                <button type="submit" class="btn btn-link p-0 resend-link" id="resendBtn">Resend code</button>
+            </p>
+        </form>
+
+        <hr>
+        <a href="{{ url_for('login') }}" class="text-muted small">
+            <i class="fas fa-arrow-left me-1"></i> Back to Login
+        </a>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<canvas id="dataCanvas"></canvas>
+<div class="overlay"></div>
+<script>
+(function() {
+    const canvas = document.getElementById('dataCanvas');
+    const ctx    = canvas.getContext('2d');
+    let W, H, nodes, particles, binaries;
+    function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; init(); }
+    function rand(a, b) { return Math.random() * (b - a) + a; }
+    function randInt(a, b) { return Math.floor(rand(a, b)); }
+    function init() {
+        const N = Math.floor(W * H / 18000);
+        nodes = Array.from({length: N}, () => ({ x: rand(0,W), y: rand(0,H), vx: rand(-0.3,0.3), vy: rand(-0.3,0.3), r: rand(1.5,3.5), pulse: rand(0, Math.PI*2) }));
+        binaries = Array.from({length: 60}, () => ({ x: rand(0,W), y: rand(0,H), val: Math.random()>0.5?'1':'0', size: rand(9,16), alpha: rand(0.04,0.18), vy: rand(0.2,0.7), vx: rand(-0.1,0.1) }));
+        particles = Array.from({length: 25}, () => ({ from: randInt(0,nodes.length), to: randInt(0,nodes.length), t: rand(0,1), speed: rand(0.003,0.009) }));
+    }
+    const CONNECTION_DIST = 160;
+    let frame = 0;
+    function draw() {
+        ctx.clearRect(0, 0, W, H); frame++;
+        nodes.forEach(n => { n.x+=n.vx; n.y+=n.vy; n.pulse+=0.025; if(n.x<0||n.x>W) n.vx*=-1; if(n.y<0||n.y>H) n.vy*=-1; });
+        for (let i=0; i<nodes.length; i++) for (let j=i+1; j<nodes.length; j++) {
+            const dx=nodes[j].x-nodes[i].x, dy=nodes[j].y-nodes[i].y, dist=Math.sqrt(dx*dx+dy*dy);
+            if (dist<CONNECTION_DIST) { const a=(1-dist/CONNECTION_DIST)*0.35; ctx.beginPath(); ctx.moveTo(nodes[i].x,nodes[i].y); ctx.lineTo(nodes[j].x,nodes[j].y); ctx.strokeStyle=`rgba(0,180,255,${a})`; ctx.lineWidth=0.7; ctx.stroke(); }
+        }
+        nodes.forEach(n => {
+            const pulse=0.5+0.5*Math.sin(n.pulse);
+            const grd=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*4); grd.addColorStop(0,`rgba(0,200,255,${0.25*pulse})`); grd.addColorStop(1,'rgba(0,200,255,0)');
+            ctx.beginPath(); ctx.arc(n.x,n.y,n.r*4,0,Math.PI*2); ctx.fillStyle=grd; ctx.fill();
+            ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2); ctx.fillStyle=`rgba(100,220,255,${0.7+0.3*pulse})`; ctx.fill();
+        });
+        particles.forEach(p => {
+            const a=nodes[p.from], b=nodes[p.to]; if(!a||!b) return;
+            p.t+=p.speed; if(p.t>1){ p.t=0; p.from=randInt(0,nodes.length); p.to=randInt(0,nodes.length); }
+            const x=a.x+(b.x-a.x)*p.t, y=a.y+(b.y-a.y)*p.t;
+            ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fillStyle='rgba(255,220,50,0.85)'; ctx.fill();
+            const tx=a.x+(b.x-a.x)*Math.max(0,p.t-0.08), ty=a.y+(b.y-a.y)*Math.max(0,p.t-0.08);
+            ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(x,y); ctx.strokeStyle='rgba(255,200,0,0.3)'; ctx.lineWidth=1.5; ctx.stroke();
+        });
+        binaries.forEach(b => {
+            b.y+=b.vy; b.x+=b.vx; if(b.y>H+20) b.y=-20; if(b.x<0||b.x>W) b.vx*=-1;
+            if(frame%90===0) b.val=Math.random()>0.5?'1':'0';
+            ctx.font=`${b.size}px 'Courier New',monospace`; ctx.fillStyle=`rgba(0,255,150,${b.alpha})`; ctx.fillText(b.val,b.x,b.y);
+        });
+        requestAnimationFrame(draw);
+    }
+    window.addEventListener('resize', resize); resize(); draw();
+})();
+</script>
+<script>
+    // ── Auto-advance digit inputs ──
+    const digits = document.querySelectorAll('.digit');
+    digits.forEach((input, i) => {
+        input.addEventListener('input', () => {
+            input.value = input.value.replace(/[^0-9]/g, '');
+            if (input.value && i < digits.length - 1) digits[i + 1].focus();
+            input.classList.toggle('filled', !!input.value);
+            updateHidden();
+        });
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Backspace' && !input.value && i > 0) {
+                digits[i - 1].focus();
+                digits[i - 1].value = '';
+                digits[i - 1].classList.remove('filled');
+                updateHidden();
+            }
+        });
+        // Handle paste
+        input.addEventListener('paste', e => {
+            e.preventDefault();
+            const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g,'').slice(0,6);
+            pasted.split('').forEach((ch, idx) => {
+                if (digits[idx]) { digits[idx].value = ch; digits[idx].classList.add('filled'); }
+            });
+            updateHidden();
+            if (pasted.length === 6) document.getElementById('verifyForm').submit();
+        });
+    });
+    digits[0].focus();
+
+    function updateHidden() {
+        document.getElementById('hiddenCode').value = [...digits].map(d => d.value).join('');
+    }
+
+    // Auto-submit when all 6 digits filled
+    function checkAutoSubmit() {
+        const code = [...digits].map(d => d.value).join('');
+        if (code.length === 6) {
+            updateHidden();
+            setTimeout(() => document.getElementById('verifyForm').submit(), 300);
+        }
+    }
+    digits.forEach(d => d.addEventListener('input', checkAutoSubmit));
+
+    // ── Countdown 15 min ──
+    let seconds = 15 * 60;
+    const countdownEl = document.getElementById('countdown');
+    const resendBtn   = document.getElementById('resendBtn');
+    const timer = setInterval(() => {
+        seconds--;
+        const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+        const s = String(seconds % 60).padStart(2, '0');
+        countdownEl.textContent = m + ':' + s;
+        if (seconds <= 0) {
+            clearInterval(timer);
+            countdownEl.textContent = 'expired';
+            countdownEl.style.color = '#dc3545';
+        }
+    }, 1000);
+</script>
+</body>
+</html>
