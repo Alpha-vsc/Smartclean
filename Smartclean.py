@@ -1,5 +1,5 @@
 # ==============================================================================
-# SmartClean — Backend v3.2 (Render-ready)
+# SmartClean — Backend v3.2
 # SmartClean | Auteurs : Alpha O. Diallo & Aicha Diop
 # ==============================================================================
 
@@ -32,7 +32,9 @@ load_dotenv()
 # CONFIGURATION DU LOGGING
 # ==============================================================================
 
-file_handler = logging.FileHandler('smartclean_security.log')
+# Logs de sécurité → fichier uniquement
+_log_dir = os.environ.get('PERSISTENT_DISK_PATH', os.path.abspath(os.path.dirname(__file__)))
+file_handler = logging.FileHandler(os.path.join(_log_dir, 'smartclean_security.log'))
 file_handler.setLevel(logging.WARNING)
 file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
 
@@ -40,30 +42,36 @@ security_logger = logging.getLogger('security')
 security_logger.addHandler(file_handler)
 security_logger.setLevel(logging.WARNING)
 
+# Werkzeug (Flask) → terminal uniquement
 werkzeug_logger = logging.getLogger('werkzeug')
 werkzeug_logger.setLevel(logging.INFO)
 
 # ==============================================================================
 # INITIALISATION FLASK
 # ==============================================================================
+
 import os
 app = Flask(__name__, template_folder=os.path.dirname(os.path.abspath(__file__)))
 
+# ── Clé secrète ──
 _secret = os.environ.get('SECRET_KEY')
 if not _secret:
     _secret = secrets.token_hex(32)
     security_logger.warning(
-        "SECRET_KEY non définie. Clé aléatoire utilisée. "
-        "Définissez SECRET_KEY dans vos variables d'environnement Render."
+        "SECRET_KEY non définie. Clé aléatoire utilisée : "
+        "toutes les sessions seront perdues au redémarrage. "
+        "Définissez SECRET_KEY dans votre .env"
     )
 app.secret_key = _secret
 
+# ── Configuration session ──
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('HTTPS', 'false') == 'true'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
 
+# ── Headers de sécurité sur toutes les réponses ──
 @app.after_request
 def set_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -81,14 +89,15 @@ def set_security_headers(response):
 
 # ==============================================================================
 # CHEMINS & DOSSIERS
-# Render : les fichiers écrits hors du disque persistant sont perdus au redémarrage.
-# Le disque persistant est monté sur /opt/render/project/src (défini dans render.yaml).
 # ==============================================================================
 
-BASE_DIR   = os.path.abspath(os.path.dirname(__file__))
-UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
-TEMP_DIR   = os.path.join(BASE_DIR, 'temp_previews')
-DB_PATH    = os.path.join(BASE_DIR, 'smartclean.db')
+BASE_DIR        = os.path.abspath(os.path.dirname(__file__))
+
+# Disque persistant Render (variable d'env PERSISTENT_DISK_PATH=/data) sinon fallback local
+PERSISTENT_DIR  = os.environ.get('PERSISTENT_DISK_PATH', BASE_DIR)
+UPLOAD_DIR      = os.path.join(PERSISTENT_DIR, 'uploads')
+TEMP_DIR        = os.path.join(PERSISTENT_DIR, 'temp_previews')
+DB_PATH         = os.path.join(PERSISTENT_DIR, 'smartclean.db')
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(TEMP_DIR,   exist_ok=True)
@@ -97,23 +106,26 @@ os.makedirs(TEMP_DIR,   exist_ok=True)
 # SÉCURITÉ FICHIERS — EXTENSIONS & MAGIC BYTES
 # ==============================================================================
 
-ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls', 'json', 'xml'}
+ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls', 'json', 'xml', 'tsv', 'parquet'}
 
 FILE_SIGNATURES = {
     'xlsx': b'PK\x03\x04',
     'xls':  b'\xd0\xcf\x11\xe0',
+    # csv, json, xml : fichiers texte, pas de magic bytes
 }
 
 def allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def validate_file_content(file, extension: str) -> bool:
+    """Vérifie que le contenu du fichier correspond à son extension."""
     sig = FILE_SIGNATURES.get(extension)
     if sig:
         header = file.read(len(sig))
         file.seek(0)
         return header == sig
     else:
+        # Fichier texte : vérifier l'encodage
         header = file.read(512)
         file.seek(0)
         for enc in ('utf-8', 'latin-1', 'utf-16'):
@@ -125,16 +137,16 @@ def validate_file_content(file, extension: str) -> bool:
         return False
 
 # ==============================================================================
-# RATE LIMITING
+# RATE LIMITING (sans dépendance externe)
 # ==============================================================================
 
 _rl_store = defaultdict(list)
 _rl_lock  = threading.Lock()
 
 RATE_LIMITS = {
-    'login':    (5,  60),
-    'register': (3,  300),
-    'preview':  (20, 60),
+    'login':    (5,  60),    # 5 tentatives / 60 s
+    'register': (3,  300),   # 3 inscriptions / 5 min
+    'preview':  (20, 60),    # 20 uploads / min
 }
 
 def is_rate_limited(ip: str, endpoint: str) -> bool:
@@ -156,7 +168,7 @@ def get_client_ip() -> str:
             or request.remote_addr or 'unknown')
 
 # ==============================================================================
-# PROTECTION CSRF
+# PROTECTION CSRF (sans dépendance externe)
 # ==============================================================================
 
 def generate_csrf_token() -> str:
@@ -183,6 +195,7 @@ def csrf_required(f):
         return f(*args, **kwargs)
     return wrapper
 
+# Disponible dans tous les templates
 app.jinja_env.globals['csrf_token'] = generate_csrf_token
 
 # ==============================================================================
@@ -190,19 +203,26 @@ app.jinja_env.globals['csrf_token'] = generate_csrf_token
 # ==============================================================================
 
 def ensure_db_writable():
+    """Vérifie et corrige les permissions de la base de données."""
     if os.path.exists(DB_PATH) and not os.access(DB_PATH, os.W_OK):
         try:
             os.chmod(DB_PATH, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
         except Exception as e:
-            raise PermissionError(f"Base de données en lecture seule : {DB_PATH}\nErreur : {e}")
+            raise PermissionError(
+                f"Base de données en lecture seule : {DB_PATH}\n"
+                f"Windows : clic droit → Propriétés → décocher Lecture seule\n"
+                f"Linux/Mac : chmod 644 smartclean.db\nErreur : {e}"
+            )
 
 def get_db():
+    """Connexion SQLite avec row_factory."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 def init_db():
+    """Crée toutes les tables et le compte admin si nécessaire."""
     ensure_db_writable()
     conn = get_db()
     cur = conn.cursor()
@@ -265,15 +285,16 @@ def init_db():
     ''')
     conn.commit()
 
+    # Créer le compte admin si absent
     cur.execute('SELECT COUNT(*) FROM users WHERE role = "admin"')
     if cur.fetchone()[0] == 0:
         pwd = os.environ.get('ADMIN_PASSWORD')
         if not pwd:
             pwd = secrets.token_urlsafe(16)
             print("=" * 60)
-            print("⚠️  ADMIN_PASSWORD non défini dans les variables d'environnement")
+            print("⚠️  ADMIN_PASSWORD non défini dans .env")
             print(f"   Mot de passe généré : {pwd}")
-            print("   Ajoutez ADMIN_PASSWORD dans vos variables Render")
+            print("   Ajoutez ADMIN_PASSWORD=<votre_mdp> dans votre .env")
             print("=" * 60)
             security_logger.warning("Admin créé avec un mot de passe aléatoire.")
         cur.execute(
@@ -379,6 +400,57 @@ def save_user_settings(user_id, data):
     ))
     conn.commit()
     conn.close()
+
+
+# ==============================================================================
+# FONCTIONS EMAIL
+# ==============================================================================
+
+def send_email(to_email, subject, body_html):
+    smtp_host = os.environ.get('SMTP_HOST', 'smtp.gmail.com')
+    smtp_port = int(os.environ.get('SMTP_PORT', 587))
+    smtp_user = os.environ.get('SMTP_USER', '')
+    smtp_pass = os.environ.get('SMTP_PASS', '')
+    from_addr = os.environ.get('FROM_EMAIL', smtp_user)
+    if not smtp_user or not smtp_pass:
+        security_logger.warning('SMTP non configure - email non envoye')
+        return False
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From']    = 'SmartClean <' + from_addr + '>'
+        msg['To']      = to_email
+        msg.attach(MIMEText(body_html, 'html'))
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(from_addr, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        security_logger.error('Erreur SMTP : ' + str(e))
+        return False
+
+def create_verification_code(user_id, purpose='verify'):
+    code    = str(secrets.randbelow(900000) + 100000)
+    expires = datetime.now() + timedelta(minutes=15)
+    conn = get_db()
+    conn.execute('UPDATE email_verifications SET used=1 WHERE user_id=? AND purpose=? AND used=0', (user_id, purpose))
+    conn.execute('INSERT INTO email_verifications (user_id, code, purpose, expires_at) VALUES (?,?,?,?)', (user_id, code, purpose, expires))
+    conn.commit()
+    conn.close()
+    return code
+
+def verify_code(user_id, code, purpose='verify'):
+    conn = get_db()
+    row = conn.execute(
+        'SELECT id FROM email_verifications WHERE user_id=? AND code=? AND purpose=? AND used=0 AND expires_at > ?',
+        (user_id, code, purpose, datetime.now())
+    ).fetchone()
+    if row:
+        conn.execute('UPDATE email_verifications SET used=1 WHERE id=?', (row['id'],))
+        conn.commit()
+    conn.close()
+    return row is not None
 
 # ==============================================================================
 # FONCTIONS HISTORIQUE & STATISTIQUES
@@ -507,14 +579,21 @@ NA_VARIANTS = {'na', 'n/a', 'nan', 'null', 'none', '--', '-', 'n.a.', 'n.a', '?'
 EXTRA_NA    = ['na','n/a','NA','N/A','null','NULL','none','None','NONE','--','-','?','missing','MISSING','n.a.','N.A.']
 
 def normalize_missing(df):
+    """
+    Remplace toutes les variantes textuelles de NA par de vrais NaN,
+    puis essaie de convertir les colonnes majoritairement numériques.
+    Retourne (df_nettoyé, liste_de_changements).
+    """
     changes = []
     df = df.copy()
 
+    # Uniformiser StringDtype → object
     for col in df.columns:
         if pd.api.types.is_string_dtype(df[col]) and df[col].dtype != object:
             df[col] = df[col].astype(object)
 
     for col in df.columns:
+        # Étape 1 : remplacer les variantes NA
         str_vals = df[col].apply(lambda v: '' if pd.isna(v) else str(v).strip().lower())
         mask = str_vals.isin(NA_VARIANTS)
         n = int(mask.sum())
@@ -522,6 +601,7 @@ def normalize_missing(df):
             df.loc[mask, col] = np.nan
             changes.append(f"'{col}' : {n} valeur(s) non-standard (na, n/a, --…) → NaN")
 
+        # Étape 2 : coercion numérique si ≥ 50% de la colonne est numérique
         if df[col].dtype == object:
             already_nan  = df[col].isna()
             coerced      = pd.to_numeric(df[col], errors='coerce')
@@ -538,14 +618,31 @@ def normalize_missing(df):
                     changes.append(f"'{col}' : {n_invalid} valeur(s) invalide(s) (ex: '{ex}') → NaN")
                 df[col] = coerced
 
+    # Étape 3 : conversion automatique en entier pour colonnes numériques entières
+    # Une colonne est considérée entière si >= 80% de ses valeurs n ont pas de décimales
+    for col in df.select_dtypes(include=[np.number]).columns:
+        non_null = df[col].dropna()
+        if len(non_null) == 0:
+            continue
+        pct_integer = (non_null % 1 == 0).sum() / len(non_null)
+        if pct_integer >= 0.8:
+            df[col] = df[col].round().astype('Int64')
+            changes.append(f"'{col}' : convertie en entier (Int64)")
+
     return df, changes
 
 def process_data(df, config):
+    """
+    Pipeline de nettoyage complet.
+    Retourne (df_traité, liste_de_changements).
+    """
     changes = []
 
+    # 1. Normalisation des NA
     df, na_changes = normalize_missing(df)
     changes.extend(na_changes)
 
+    # 2. Suppression des doublons
     if config.get('duplicates'):
         before = len(df)
         df = df.drop_duplicates()
@@ -553,36 +650,91 @@ def process_data(df, config):
         if n:
             changes.append(f"{n} doublon(s) supprimé(s)")
 
+    # 1b. Détection automatique des colonnes catégorielles
+    for col in df.select_dtypes(include=[np.number]).columns:
+        n_unique = df[col].nunique()
+        n_total  = len(df[col].dropna())
+        if n_total == 0:
+            continue
+        unique_ratio = n_unique / n_total
+        # Exclure les colonnes ID (ratio unique élevé ou nom contenant 'id')
+        is_id_col = bool(re.search(r'(^id$|_id$|^pid$)', col, re.IGNORECASE))
+        # Catégoriel si : peu de valeurs uniques (<= 10), faible ratio (<= 30%), pas un ID
+        if not is_id_col and n_unique <= 10 and unique_ratio <= 0.3:
+            df[col] = df[col].astype('category')
+            changes.append(f"'{col}' : convertie en catégorielle ({n_unique} valeurs uniques)")
+
+    # 2b. Correction colonnes Y/N (ex: OWN_OCCUPIED) — valeurs invalides → NaN
+    for col in df.columns:
+        if df[col].dtype == object:
+            vals_upper = df[col].dropna().str.upper().unique()
+            yn_present = any(v in ('Y', 'N') for v in vals_upper)
+            if yn_present:
+                invalid_mask = df[col].notna() & ~df[col].str.upper().isin(['Y', 'N'])
+                n_inv = int(invalid_mask.sum())
+                if n_inv:
+                    df.loc[invalid_mask, col] = np.nan
+                    changes.append(f"'{col}' : {n_inv} valeur(s) invalide(s) → NaN")
+
+    # 3. Valeurs manquantes
     if config.get('missing_values'):
         filled = 0
         for col in df.columns:
-            n_missing = df[col].isna().sum()
+            n_missing = int(df[col].isna().sum())
             if n_missing == 0:
                 continue
+
+            # Exclure les colonnes ID : ne jamais remplir un identifiant unique
+            # Exclure les colonnes ID par nom uniquement (ex: id, pid, user_id...)
+            is_id_col = bool(re.search(r'(^id$|_id$|^pid$)', col, re.IGNORECASE))
+            if is_id_col:
+                continue
+
             if pd.api.types.is_numeric_dtype(df[col]):
-                df[col] = df[col].fillna(df[col].mean())
+                non_null = pd.to_numeric(df[col].dropna(), errors="coerce").dropna()
+                fill_val = float(df[col].median())
+                # Si toutes les valeurs sont entières → arrondir à l entier
+                if len(non_null) > 0 and (non_null % 1 == 0).all():
+                    df[col] = df[col].fillna(int(round(fill_val)))
+                else:
+                    # Décimales : garder 1 chiffre max (ex: 1.5 → ok, 1.357 → 1.4)
+                    df[col] = df[col].fillna(round(fill_val, 1))
             else:
                 modes = df[col].dropna().mode()
-                df[col] = df[col].fillna(modes.iloc[0] if not modes.empty else 'N/A')
+                df[col] = df[col].fillna(modes.iloc[0] if not modes.empty else "N/A")
             filled += n_missing
         if filled:
-            changes.append(f"{filled} valeur(s) manquante(s) remplissées (moyenne/mode)")
+            changes.append(f"{filled} valeur(s) manquante(s) remplissées (médiane/mode)")
 
+    # 4. Outliers (méthode IQR)
     if config.get('outliers'):
         before = len(df)
+        skipped = []
         for col in df.select_dtypes(include=[np.number]).columns:
+            # Minimum 30 lignes par colonne pour éviter les faux outliers sur petits datasets
+            if df[col].dropna().count() < 30:
+                skipped.append(col)
+                continue
             Q1, Q3 = df[col].quantile(0.25), df[col].quantile(0.75)
             IQR = Q3 - Q1
+            if IQR == 0:
+                continue  # Toutes les valeurs identiques, pas d outliers possibles
             df = df[(df[col] >= Q1 - 1.5 * IQR) & (df[col] <= Q3 + 1.5 * IQR)]
         n = before - len(df)
         if n:
             changes.append(f"{n} outlier(s) supprimé(s) (méthode IQR)")
+        if skipped:
+            changes.append(f"Outliers ignorés pour {len(skipped)} colonne(s) (moins de 30 lignes)")
 
+    # 5. Normalisation Min-Max (exclut les colonnes ID)
     if config.get('normalize'):
         num_cols = df.select_dtypes(include=[np.number]).columns
-        if not num_cols.empty:
-            df[num_cols] = MinMaxScaler().fit_transform(df[num_cols])
-            changes.append(f"Normalisation Min-Max appliquée ({len(num_cols)} colonne(s))")
+        # Exclure les colonnes dont le nom contient 'id' (insensible à la casse)
+        id_cols  = [c for c in num_cols if re.search(r'\bid\b', c, re.IGNORECASE)]
+        cols_to_normalize = [c for c in num_cols if c not in id_cols]
+        if cols_to_normalize:
+            df[cols_to_normalize] = MinMaxScaler().fit_transform(df[cols_to_normalize])
+            changes.append(f"Normalisation Min-Max appliquée ({len(cols_to_normalize)} colonne(s), colonnes ID exclues)")
 
     if not changes:
         changes.append("Aucun changement appliqué")
@@ -645,6 +797,14 @@ def login():
         conn.close()
 
         if user and check_password_hash(user['password_hash'], password):
+            # Verifier si email est valide (is_active=0 = en attente de verification)
+            if not user['is_active']:
+                session['pending_verify_user_id'] = user['id']
+                session['pending_verify_email']   = user['email']
+                flash('Veuillez verifier votre email avant de vous connecter.', 'warning')
+                return redirect(url_for('verify_email_page'))
+
+            # Prévention session fixation
             old_csrf = session.get('csrf_token')
             session.clear()
             session['csrf_token'] = old_csrf or secrets.token_hex(32)
@@ -698,19 +858,99 @@ def register():
             conn.close()
             return redirect(url_for('register'))
 
+        # Compte créé inactif — activation après vérification email
         conn.execute(
-            'INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?,?,?,?,?)',
-            (username, email, generate_password_hash(password), full_name, 'user')
+            'INSERT INTO users (username, email, password_hash, full_name, role, is_active, email_verified) VALUES (?,?,?,?,?,?,?)',
+            (username, email, generate_password_hash(password), full_name, 'user', 0, 0)
         )
         conn.commit()
         user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
         conn.close()
 
-        log_activity(user_id, 'REGISTER', 'Nouveau compte', ip)
-        flash('Compte créé avec succès ! Vous pouvez vous connecter.', 'success')
-        return redirect(url_for('login'))
+        log_activity(user_id, 'REGISTER', 'Nouveau compte en attente de verification', ip)
+
+        # Envoyer le code de verification
+        code = create_verification_code(user_id, purpose='verify')
+        html = (
+            '<div style="font-family:sans-serif;max-width:500px;margin:auto;padding:30px">'
+            '<h2 style="color:#1a2a6c">Bienvenue sur SmartClean !</h2>'
+            '<p>Merci de vous etre inscrit(e). Pour activer votre compte, entrez ce code :</p>'
+            '<div style="font-size:2.5rem;font-weight:bold;letter-spacing:10px;color:#1a2a6c;'
+            'padding:25px;background:#f0f4ff;border-radius:10px;text-align:center;margin:20px 0">' + code + '</div>'
+            '<p style="color:#666">Ce code expire dans <strong>15 minutes</strong>.</p>'
+            '<p style="color:#999;font-size:.85rem">Si vous n avez pas cree de compte, ignorez cet email.</p>'
+            '</div>'
+        )
+        ok = send_email(email, 'SmartClean - Activez votre compte', html)
+        if not ok:
+            # SMTP non configure : activer directement (mode dev)
+            conn2 = get_db()
+            conn2.execute('UPDATE users SET is_active=1, email_verified=1 WHERE id=?', (user_id,))
+            conn2.commit()
+            conn2.close()
+            flash('Compte cree avec succes ! (Email SMTP non configure - compte active directement)', 'success')
+            return redirect(url_for('login'))
+
+        # Stocker user_id en session pour la page de verification
+        session['pending_verify_user_id'] = user_id
+        session['pending_verify_email']   = email
+        flash('Un code de verification a ete envoye a ' + email + '.', 'info')
+        return redirect(url_for('verify_email_page'))
 
     return render_template('register.html')
+
+
+@app.route('/verify-email', methods=['GET', 'POST'])
+@csrf_required
+def verify_email_page():
+    user_id = session.get('pending_verify_user_id')
+    email   = session.get('pending_verify_email', '')
+    if not user_id:
+        flash('Session expiree. Veuillez vous inscrire a nouveau.', 'danger')
+        return redirect(url_for('register'))
+
+    if request.method == 'POST':
+        code = request.form.get('code', '').strip()
+        if verify_code(user_id, code, purpose='verify'):
+            conn = get_db()
+            conn.execute('UPDATE users SET is_active=1, email_verified=1 WHERE id=?', (user_id,))
+            conn.commit()
+            conn.close()
+            log_activity(user_id, 'EMAIL_VERIFIED', 'Compte active')
+            session.pop('pending_verify_user_id', None)
+            session.pop('pending_verify_email', None)
+            flash('Email verifie ! Vous pouvez maintenant vous connecter.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('Code invalide ou expire. Reessayez.', 'danger')
+
+    return render_template('verify_email.html', email=email, user_id=user_id)
+
+
+@app.route('/resend-verification', methods=['POST'])
+@csrf_required
+def resend_verification():
+    user_id = session.get('pending_verify_user_id')
+    email   = session.get('pending_verify_email', '')
+    if not user_id or not email:
+        flash('Session expiree.', 'danger')
+        return redirect(url_for('register'))
+    code = create_verification_code(user_id, purpose='verify')
+    html = (
+        '<div style="font-family:sans-serif;max-width:500px;margin:auto;padding:30px">'
+        '<h2 style="color:#1a2a6c">SmartClean - Nouveau code</h2>'
+        '<p>Votre nouveau code de verification :</p>'
+        '<div style="font-size:2.5rem;font-weight:bold;letter-spacing:10px;color:#1a2a6c;'
+        'padding:25px;background:#f0f4ff;border-radius:10px;text-align:center;margin:20px 0">' + code + '</div>'
+        '<p style="color:#666">Expire dans <strong>15 minutes</strong>.</p>'
+        '</div>'
+    )
+    ok = send_email(email, 'SmartClean - Nouveau code de verification', html)
+    if ok:
+        flash('Nouveau code envoye a ' + email, 'info')
+    else:
+        flash('Erreur SMTP. Verifiez votre config .env', 'danger')
+    return redirect(url_for('verify_email_page'))
 
 
 @app.route('/logout')
@@ -864,10 +1104,12 @@ def preview():
         safe_name = secure_filename(file.filename)
         file_ext  = safe_name.rsplit('.', 1)[1].lower()
 
+        # Taille réelle
         file.seek(0, os.SEEK_END)
         file_size_kb = round(file.tell() / 1024, 2)
         file.seek(0)
 
+        # Validation du contenu
         if not validate_file_content(file, file_ext):
             flash('Le contenu du fichier ne correspond pas à son extension.', 'danger')
             security_logger.warning(f"Upload refusé (contenu invalide) — {safe_name}, IP: {ip}")
@@ -883,6 +1125,7 @@ def preview():
         if config['format'] not in ('csv', 'xlsx', 'json'):
             config['format'] = 'csv'
 
+        # Lecture du fichier
         if file_ext == 'csv':
             df = pd.read_csv(file, na_values=EXTRA_NA, keep_default_na=True)
         elif file_ext in ('xlsx', 'xls'):
@@ -900,6 +1143,7 @@ def preview():
         df_clean, changes = process_data(df.copy(), config)
         cleaned_shape   = df_clean.shape
 
+        # Sauvegarde temporaire sur disque (évite la limite 4KB du cookie)
         temp_id   = str(uuid.uuid4())
         temp_path = os.path.join(TEMP_DIR, f"{temp_id}.pkl")
         df_clean.to_pickle(temp_path)
@@ -907,6 +1151,7 @@ def preview():
         session['preview_format']   = config['format']
         session['preview_filename'] = safe_name
 
+        # Statistiques
         stats = {
             'original_rows': original_shape[0],
             'cleaned_rows':  cleaned_shape[0],
@@ -916,6 +1161,7 @@ def preview():
 
         processing_time = round(time.time() - start_time, 2)
 
+        # Enregistrement dans l'historique
         save_to_history({
             'filename':       safe_name,
             'original_rows':  original_shape[0],
@@ -933,14 +1179,18 @@ def preview():
 
         log_activity(session['user_id'], 'PREVIEW', f'Preview de {safe_name}', ip)
 
-        user_settings      = get_user_settings(session['user_id'])
+        user_settings     = get_user_settings(session['user_id'])
         preview_rows_count = int(user_settings.get('preview_rows', 10))
 
+        def df_display(frame, n):
+            return frame.head(n).astype(object).where(frame.head(n).notna(), other='N/A').values.tolist()
         return render_template('preview.html',
                                stats=stats,
                                changes=changes,
                                columns=df_clean.columns.tolist(),
-                               preview_data=df_clean.head(preview_rows_count).values.tolist(),
+                               preview_data=df_display(df_clean, preview_rows_count),
+                               before_cols=df.columns.tolist(),
+                               before_data=df_display(df, preview_rows_count),
                                format=config['format'])
 
     except Exception as e:
@@ -984,6 +1234,7 @@ def download_preview():
 
         log_activity(session['user_id'], 'DOWNLOAD', f'Téléchargement de {out_name}')
 
+        # Nettoyage
         try:
             os.remove(temp_path)
         except Exception:
@@ -1041,10 +1292,267 @@ def save_settings():
 
     return redirect(url_for('settings'))
 
+
 # ==============================================================================
-# LANCEMENT — Render utilise gunicorn, ce bloc ne s'exécute pas en prod
+# ROUTES — MOT DE PASSE & VERIFICATION EMAIL
+# ==============================================================================
+
+@app.route('/change_password', methods=['POST'])
+@login_required
+@csrf_required
+def change_password():
+    current_pw = request.form.get('current_password', '')
+    new_pw     = request.form.get('new_password', '')
+    confirm_pw = request.form.get('confirm_password', '')
+    user = get_user_by_id(session['user_id'])
+    if not check_password_hash(user['password_hash'], current_pw):
+        flash('Mot de passe actuel incorrect.', 'danger')
+        return redirect(url_for('settings'))
+    if len(new_pw) < 6:
+        flash('Le nouveau mot de passe doit contenir au moins 6 caracteres.', 'danger')
+        return redirect(url_for('settings'))
+    if new_pw != confirm_pw:
+        flash('Les mots de passe ne correspondent pas.', 'danger')
+        return redirect(url_for('settings'))
+    conn = get_db()
+    conn.execute('UPDATE users SET password_hash=? WHERE id=?', (generate_password_hash(new_pw), session['user_id']))
+    conn.commit()
+    conn.close()
+    log_activity(session['user_id'], 'PASSWORD_CHANGED', 'Mot de passe modifie', get_client_ip())
+    flash('Mot de passe modifie avec succes.', 'success')
+    return redirect(url_for('settings'))
+
+
+@app.route('/send_verification_email', methods=['POST'])
+@login_required
+@csrf_required
+def send_verification_email():
+    user = get_user_by_id(session['user_id'])
+    if user.get('email_verified'):
+        flash('Votre email est deja verifie.', 'info')
+        return redirect(url_for('settings'))
+    code = create_verification_code(session['user_id'], purpose='verify')
+    html = (
+        '<div style="font-family:sans-serif;max-width:500px;margin:auto">'
+        '<h2 style="color:#1a2a6c">SmartClean - Verification email</h2>'
+        '<p>Votre code de verification est :</p>'
+        '<div style="font-size:2rem;font-weight:bold;letter-spacing:8px;color:#1a2a6c;'
+        'padding:20px;background:#f0f4ff;border-radius:8px;text-align:center">' + code + '</div>'
+        '<p style="color:#666">Ce code expire dans <strong>15 minutes</strong>.</p>'
+        '</div>'
+    )
+    ok = send_email(user['email'], 'SmartClean - Code de verification', html)
+    if ok:
+        flash('Code envoye a ' + user['email'] + '. Verifiez votre boite mail.', 'success')
+    else:
+        flash('Erreur envoi email. Verifiez la config SMTP dans .env.', 'danger')
+    return redirect(url_for('settings'))
+
+
+@app.route('/confirm_verification', methods=['POST'])
+@login_required
+@csrf_required
+def confirm_verification():
+    code = request.form.get('verification_code', '').strip()
+    if verify_code(session['user_id'], code, purpose='verify'):
+        conn = get_db()
+        conn.execute('UPDATE users SET email_verified=1 WHERE id=?', (session['user_id'],))
+        conn.commit()
+        conn.close()
+        log_activity(session['user_id'], 'EMAIL_VERIFIED', 'Email verifie')
+        flash('Email verifie avec succes !', 'success')
+    else:
+        flash('Code invalide ou expire.', 'danger')
+    return redirect(url_for('settings'))
+
+
+# ==============================================================================
+# ROUTES — ANALYSE DES DONNEES
+# ==============================================================================
+
+@app.route('/analyze', methods=['POST'])
+@login_required
+@csrf_required
+def analyze():
+    ip = get_client_ip()
+    try:
+        file = request.files.get('file')
+        if not file or file.filename == '':
+            return jsonify({'error': 'Aucun fichier'}), 400
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'Format non supporte'}), 400
+        safe_name = secure_filename(file.filename)
+        file_ext  = safe_name.rsplit('.', 1)[1].lower()
+        if file_ext == 'csv':
+            df = pd.read_csv(file, na_values=EXTRA_NA, keep_default_na=True)
+        elif file_ext in ('xlsx', 'xls'):
+            df = pd.read_excel(file, na_values=EXTRA_NA, keep_default_na=True)
+        elif file_ext == 'json':
+            try:
+                df = pd.read_json(file)
+            except ValueError:
+                file.seek(0)
+                df = pd.read_json(file, orient='records')
+        elif file_ext == 'xml':
+            df = pd.read_xml(file)
+        else:
+            return jsonify({'error': 'Format non supporte'}), 400
+
+        col_stats = []
+        for col in df.columns:
+            s = df[col]
+            stat = {
+                'name':        col,
+                'dtype':       str(s.dtype),
+                'total':       len(s),
+                'missing':     int(s.isna().sum()),
+                'missing_pct': round(s.isna().mean() * 100, 1),
+                'unique':      int(s.nunique()),
+            }
+            if pd.api.types.is_numeric_dtype(s):
+                nn = s.dropna()
+                if len(nn):
+                    stat.update({
+                        'min':    round(float(nn.min()), 4),
+                        'max':    round(float(nn.max()), 4),
+                        'mean':   round(float(nn.mean()), 4),
+                        'median': round(float(nn.median()), 4),
+                        'std':    round(float(nn.std()), 4),
+                    })
+            else:
+                top = s.dropna().value_counts().head(3).to_dict()
+                stat['top_values'] = {str(k): int(v) for k, v in top.items()}
+            col_stats.append(stat)
+
+        summary = {
+            'filename':      safe_name,
+            'rows':          len(df),
+            'cols':          len(df.columns),
+            'total_missing': int(df.isna().sum().sum()),
+            'duplicates':    int(df.duplicated().sum()),
+            'columns':       col_stats,
+        }
+        log_activity(session['user_id'], 'ANALYZE', 'Analyse de ' + safe_name, ip)
+        return jsonify(summary)
+    except Exception as e:
+        error_id = uuid.uuid4().hex[:8].upper()
+        security_logger.error('[' + error_id + '] analyze: ' + str(e), exc_info=True)
+        return jsonify({'error': 'Erreur (' + error_id + ')'}), 500
+
+
+# ==============================================================================
+# ROUTES — CONVERSION DE FICHIERS
+# ==============================================================================
+
+CONVERSION_FORMATS = {'csv', 'xlsx', 'json', 'xml', 'tsv', 'parquet'}
+
+@app.route('/convert', methods=['GET', 'POST'])
+@login_required
+def convert():
+    if request.method == 'GET':
+        return render_template('convert.html')
+    ip = get_client_ip()
+    tmp_path = None
+    try:
+        file       = request.files.get('file')
+        target_fmt = request.form.get('target_format', 'csv').lower()
+
+        if not file or file.filename == '':
+            flash('Aucun fichier selectionne.', 'danger')
+            return redirect(url_for('convert'))
+        if target_fmt not in CONVERSION_FORMATS:
+            flash('Format cible non supporte.', 'danger')
+            return redirect(url_for('convert'))
+
+        safe_name = secure_filename(file.filename)
+        src_ext   = safe_name.rsplit('.', 1)[-1].lower() if '.' in safe_name else ''
+
+        if src_ext not in CONVERSION_FORMATS:
+            flash('Format source non supporte : .' + src_ext, 'danger')
+            return redirect(url_for('convert'))
+
+        # Sauvegarder dans un fichier temp — pd.read_xml/parquet ne
+        # supportent pas directement les objets FileStorage de Flask
+        tmp_path = os.path.join(TEMP_DIR, str(uuid.uuid4()) + '.' + src_ext)
+        file.save(tmp_path)
+
+        # Lecture selon le format source
+        if src_ext == 'csv':
+            df = pd.read_csv(tmp_path)
+        elif src_ext in ('xlsx', 'xls'):
+            df = pd.read_excel(tmp_path)
+        elif src_ext == 'json':
+            try:
+                df = pd.read_json(tmp_path)
+            except ValueError:
+                df = pd.read_json(tmp_path, orient='records')
+        elif src_ext == 'xml':
+            try:
+                df = pd.read_xml(tmp_path)
+            except Exception:
+                import xml.etree.ElementTree as ET
+                tree = ET.parse(tmp_path)
+                root = tree.getroot()
+                children = list(root)
+                if children:
+                    df = pd.read_xml(tmp_path, xpath='./' + children[0].tag)
+                else:
+                    raise ValueError('Structure XML non supportee')
+        elif src_ext == 'tsv':
+            df = pd.read_csv(tmp_path, sep='\t')
+        elif src_ext == 'parquet':
+            df = pd.read_parquet(tmp_path)
+        else:
+            flash('Format source non reconnu : ' + src_ext, 'danger')
+            return redirect(url_for('convert'))
+
+        # Normaliser les types pandas 2.x (StringDtype -> object)
+        # pour assurer la compatibilité avec openpyxl, to_xml, etc.
+        for col in df.columns:
+            if str(df[col].dtype) in ('string', 'StringDtype') or hasattr(df[col].dtype, 'na_value'):
+                df[col] = df[col].astype(object)
+
+        # Ecriture dans le format cible
+        base_name = safe_name.rsplit('.', 1)[0]
+        out_name  = base_name + '_converted.' + target_fmt
+        out_path  = os.path.join(UPLOAD_DIR, out_name)
+
+        if target_fmt == 'csv':
+            df.to_csv(out_path, index=False)
+        elif target_fmt == 'xlsx':
+            df.to_excel(out_path, index=False, engine='openpyxl')
+        elif target_fmt == 'json':
+            df.to_json(out_path, orient='records', indent=2, force_ascii=False)
+        elif target_fmt == 'xml':
+            df.to_xml(out_path, index=False)
+        elif target_fmt == 'tsv':
+            df.to_csv(out_path, sep='\t', index=False)
+        elif target_fmt == 'parquet':
+            df.to_parquet(out_path, index=False)
+
+        log_activity(session['user_id'], 'CONVERT', safe_name + ' -> ' + target_fmt, ip)
+        return send_file(out_path, as_attachment=True, download_name=out_name)
+
+    except Exception as e:
+        error_id = uuid.uuid4().hex[:8].upper()
+        security_logger.error('[' + error_id + '] convert: ' + str(e), exc_info=True)
+        flash('Erreur conversion (ref: ' + error_id + ') : ' + str(e)[:120], 'danger')
+        return redirect(url_for('convert'))
+    finally:
+        # Nettoyer le fichier temp
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
+# ==============================================================================
+# LANCEMENT
 # ==============================================================================
 
 if __name__ == '__main__':
     debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=debug)
+    if debug:
+        security_logger.warning("FLASK_DEBUG activé — ne pas utiliser en production !")
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=debug)
