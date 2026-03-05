@@ -67,7 +67,7 @@ app.secret_key = _secret
 # ── Configuration session ──
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('HTTPS', 'false') == 'true'
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV', 'production') != 'development'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
 
@@ -237,7 +237,19 @@ def init_db():
             role          TEXT    DEFAULT 'user',
             created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_login    TIMESTAMP,
-            is_active     BOOLEAN DEFAULT 1
+            is_active     BOOLEAN DEFAULT 1,
+            email_verified BOOLEAN DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS email_verifications (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL,
+            code       TEXT    NOT NULL,
+            purpose    TEXT    DEFAULT 'verify',
+            used       BOOLEAN DEFAULT 0,
+            expires_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
         );
 
         CREATE TABLE IF NOT EXISTS processing_history (
@@ -285,6 +297,12 @@ def init_db():
     ''')
     conn.commit()
 
+    # ── Migration : ajouter email_verified si absent (bases existantes) ──
+    cols = [row[1] for row in conn.execute('PRAGMA table_info(users)').fetchall()]
+    if 'email_verified' not in cols:
+        conn.execute('ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT 0')
+        conn.commit()
+
     # Créer le compte admin si absent
     cur.execute('SELECT COUNT(*) FROM users WHERE role = "admin"')
     if cur.fetchone()[0] == 0:
@@ -318,16 +336,49 @@ def login_required(f):
         if 'user_id' not in session:
             flash('Veuillez vous connecter.', 'warning')
             return redirect(url_for('login'))
+        # Vérification en base : compte toujours actif ?
+        conn = get_db()
+        user = conn.execute(
+            'SELECT is_active FROM users WHERE id = ?', (session['user_id'],)
+        ).fetchone()
+        conn.close()
+        if not user or not user['is_active']:
+            session.clear()
+            flash('Compte désactivé ou introuvable.', 'danger')
+            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return wrapper
 
 def admin_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
+        ip = get_client_ip()
+        # 1. Session présente ?
         if 'user_id' not in session:
+            security_logger.warning(
+                f"Tentative accès admin sans session — IP: {ip}, path: {request.path}"
+            )
             flash('Veuillez vous connecter.', 'warning')
             return redirect(url_for('login'))
-        if session.get('role') != 'admin':
+        # 2. Vérification en BASE DE DONNÉES (jamais faire confiance à la session seule)
+        conn = get_db()
+        user = conn.execute(
+            'SELECT role, is_active FROM users WHERE id = ?', (session['user_id'],)
+        ).fetchone()
+        conn.close()
+        if not user or not user['is_active']:
+            session.clear()
+            security_logger.warning(
+                f"Accès admin refusé — compte inactif/introuvable "
+                f"— user_id={session.get('user_id')} — IP: {ip}"
+            )
+            flash('Compte désactivé ou introuvable.', 'danger')
+            return redirect(url_for('login'))
+        if user['role'] != 'admin':
+            security_logger.warning(
+                f"Accès admin non autorisé — user_id={session['user_id']} "
+                f"— role={user['role']} — IP: {ip} — path: {request.path}"
+            )
             flash('Accès administrateur requis.', 'danger')
             return redirect(url_for('index'))
         return f(*args, **kwargs)
