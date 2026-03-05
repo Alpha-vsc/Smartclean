@@ -8,19 +8,31 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            background: transparent;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             font-family: 'Segoe UI', sans-serif;
             padding: 40px 0;
+            overflow-x: hidden;
+            position: relative;
         }
+        #bgCanvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            display: block;
+        }
+        .container { position: relative; z-index: 2; }
         
         .register-container {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(255, 255, 255, 0.88);
             border-radius: 20px;
-            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 8px 40px rgba(7, 25, 99, 0.18), 0 0 0 1px rgba(26,42,108,0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             overflow: hidden;
             max-width: 900px;
             width: 100%;
@@ -271,5 +283,73 @@
             }
         });
     </script>
+
+<canvas id="bgCanvas"></canvas>
+<script>
+(function(){
+    const canvas = document.getElementById('bgCanvas');
+    const ctx = canvas.getContext('2d');
+    let W, H, bubbles, flowLines;
+    function rand(a,b){ return Math.random()*(b-a)+a; }
+    function randPick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+    function init(){
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        bubbles = Array.from({length: 40}, () => ({
+            x: rand(0,W), y: rand(0,H), r: rand(20,70),
+            vx: rand(-0.35,0.35), vy: rand(-0.35,0.35),
+            hue: rand(210,240), alpha: rand(0.07,0.18),
+            label: randPick(['01','10','DB','sum','f','mu','sigma','CSV','JSON','ML','AI','API']),
+            phase: rand(0, Math.PI*2),
+        }));
+        flowLines = Array.from({length: 14}, (_, i) => ({
+            y: (H/13)*i + rand(-10,10), alpha: rand(0.04,0.09),
+            offset: rand(0,200), speed: rand(0.3,0.8)*(Math.random()>0.5?1:-1),
+        }));
+    }
+    let frame = 0;
+    function draw(){
+        ctx.clearRect(0,0,W,H); frame++;
+        const grad = ctx.createLinearGradient(0,0,W,H);
+        grad.addColorStop(0,'#eef2ff'); grad.addColorStop(0.45,'#f8faff'); grad.addColorStop(1,'#e4ecfe');
+        ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+        const sp=40, ox=(frame*0.3)%sp, oy=(frame*0.2)%sp;
+        ctx.fillStyle='rgba(26,42,108,0.05)';
+        for(let x=-sp+ox;x<W+sp;x+=sp) for(let y=-sp+oy;y<H+sp;y+=sp){ ctx.beginPath(); ctx.arc(x,y,1.4,0,Math.PI*2); ctx.fill(); }
+        ctx.setLineDash([8,18]);
+        flowLines.forEach(l => {
+            l.offset+=l.speed;
+            ctx.save(); ctx.globalAlpha=l.alpha; ctx.strokeStyle='#1a2a6c'; ctx.lineWidth=1;
+            ctx.lineDashOffset=-l.offset; ctx.beginPath(); ctx.moveTo(0,l.y); ctx.lineTo(W,l.y); ctx.stroke(); ctx.restore();
+        });
+        ctx.setLineDash([]);
+        for(let i=0;i<bubbles.length;i++) for(let j=i+1;j<bubbles.length;j++){
+            const dx=bubbles[j].x-bubbles[i].x,dy=bubbles[j].y-bubbles[i].y,dist=Math.sqrt(dx*dx+dy*dy);
+            if(dist<130){ ctx.beginPath(); ctx.moveTo(bubbles[i].x,bubbles[i].y); ctx.lineTo(bubbles[j].x,bubbles[j].y); ctx.strokeStyle='rgba(26,42,108,'+(1-dist/130)*0.09+')'; ctx.lineWidth=0.9; ctx.stroke(); }
+        }
+        bubbles.forEach(b => {
+            b.x+=b.vx; b.y+=b.vy; b.phase+=0.02;
+            if(b.x<-b.r*2) b.x=W+b.r; if(b.x>W+b.r*2) b.x=-b.r;
+            if(b.y<-b.r*2) b.y=H+b.r; if(b.y>H+b.r*2) b.y=-b.r;
+            const pulse=b.alpha+Math.sin(b.phase)*0.04;
+            const grd=ctx.createRadialGradient(b.x-b.r*0.3,b.y-b.r*0.3,b.r*0.05,b.x,b.y,b.r);
+            grd.addColorStop(0,'hsla('+b.hue+',80%,82%,'+(pulse*2.2)+')');
+            grd.addColorStop(0.55,'hsla('+b.hue+',65%,68%,'+(pulse*1.2)+')');
+            grd.addColorStop(1,'hsla('+b.hue+',60%,58%,0)');
+            ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fillStyle=grd; ctx.fill();
+            ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+            ctx.strokeStyle='hsla('+b.hue+',55%,50%,'+(pulse*1.8)+')'; ctx.lineWidth=1; ctx.stroke();
+            if(b.r>26){
+                ctx.font='bold '+Math.floor(b.r*0.38)+'px Courier New,monospace';
+                ctx.fillStyle='hsla('+b.hue+',45%,25%,'+(pulse*4)+')';
+                ctx.textAlign='center'; ctx.textBaseline='middle';
+                ctx.fillText(b.label,b.x,b.y);
+            }
+        });
+        requestAnimationFrame(draw);
+    }
+    window.addEventListener('resize',init); init(); draw();
+})();
+</script>
 </body>
 </html>
