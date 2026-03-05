@@ -90,6 +90,8 @@
             <a onclick="showPage('history')" id="nav-history"><i class="fas fa-clock-rotate-left"></i> History</a>
             <a onclick="showPage('statistics')" id="nav-statistics"><i class="fas fa-chart-line"></i> Statistics</a>
             <a href="{{ url_for('settings') }}" id="nav-settings"><i class="fas fa-gear"></i> Settings</a>
+            <a href="{{ url_for('convert') }}" id="nav-convert"><i class="fas fa-retweet"></i> Convert</a>
+            <a onclick="showPage('analyze')" id="nav-analyze"><i class="fas fa-magnifying-glass-chart"></i> Analyze</a>
             {% if user.role == 'admin' %}
             <a href="{{ url_for('admin_dashboard') }}" id="nav-admin"><i class="fas fa-user-shield"></i> Admin Dashboard</a>
             {% endif %}
@@ -345,6 +347,39 @@
         </div>
     </div>
 
+    <!-- ANALYZE PAGE -->
+    <div id="page-analyze" class="page-section">
+        <h2 class="fw-bold mb-4"><i class="fas fa-magnifying-glass-chart me-2"></i> Data Analysis</h2>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <p class="text-muted mb-3">Upload a file to get a detailed statistical analysis of your data.</p>
+                <form id="analyzeForm" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="d-flex gap-3 align-items-center flex-wrap">
+                        <input type="file" name="file" id="analyzeFile" class="form-control" style="max-width:350px"
+                               accept=".csv,.xlsx,.xls,.json,.xml">
+                        <button type="button" class="btn btn-primary px-4" onclick="runAnalysis()">
+                            <i class="fas fa-play me-2"></i> Analyze
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="analyzeLoading" class="text-center py-4" style="display:none">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2 text-muted">Analyzing your data...</p>
+        </div>
+
+        <div id="analyzeResults" style="display:none">
+            <!-- Summary cards -->
+            <div class="row mb-4" id="analyzeSummary"></div>
+            <!-- Column details -->
+            <div id="analyzeColumns"></div>
+        </div>
+    </div>
+
     <p class="text-center mt-5 text-muted small">© 2026 - ISI DSIA</p>
 </div>
 
@@ -545,6 +580,94 @@
             toggleSidebar();
         }
     });
+
+    // ── ANALYZE ──────────────────────────────────────────────────────────────
+    async function runAnalysis() {
+        const fileInput = document.getElementById('analyzeFile');
+        if (!fileInput.files.length) { alert('Please select a file first.'); return; }
+
+        document.getElementById('analyzeLoading').style.display = 'block';
+        document.getElementById('analyzeResults').style.display = 'none';
+
+        const fd = new FormData(document.getElementById('analyzeForm'));
+        fd.set('file', fileInput.files[0]);
+
+        try {
+            const res  = await fetch('/analyze', { method: 'POST', body: fd });
+            const data = await res.json();
+            if (data.error) { alert('Error: ' + data.error); return; }
+
+            // Summary cards
+            document.getElementById('analyzeSummary').innerHTML = `
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="stat-card text-center">
+                        <div class="stat-value">${data.rows}</div>
+                        <div class="stat-label">Rows</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="stat-card text-center">
+                        <div class="stat-value">${data.cols}</div>
+                        <div class="stat-label">Columns</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="stat-card text-center">
+                        <div class="stat-value" style="color:${data.total_missing>0?'#dc3545':'#28a745'}">${data.total_missing}</div>
+                        <div class="stat-label">Missing Values</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="stat-card text-center">
+                        <div class="stat-value" style="color:${data.duplicates>0?'#ffc107':'#28a745'}">${data.duplicates}</div>
+                        <div class="stat-label">Duplicates</div>
+                    </div>
+                </div>`;
+
+            // Column details
+            let colHtml = '<div class="row">';
+            data.columns.forEach(col => {
+                const missingBadge = col.missing > 0
+                    ? `<span class="badge bg-danger ms-1">${col.missing_pct}% missing</span>`
+                    : `<span class="badge bg-success ms-1">Complete</span>`;
+                let details = '';
+                if (col.min !== undefined) {
+                    details = `
+                        <div class="row text-center mt-2">
+                            <div class="col"><small class="text-muted">Min</small><div class="fw-bold">${col.min}</div></div>
+                            <div class="col"><small class="text-muted">Max</small><div class="fw-bold">${col.max}</div></div>
+                            <div class="col"><small class="text-muted">Mean</small><div class="fw-bold">${col.mean}</div></div>
+                            <div class="col"><small class="text-muted">Median</small><div class="fw-bold">${col.median}</div></div>
+                            <div class="col"><small class="text-muted">Std</small><div class="fw-bold">${col.std}</div></div>
+                        </div>`;
+                } else if (col.top_values) {
+                    const tops = Object.entries(col.top_values).map(([k,v]) =>
+                        `<span class="badge bg-secondary me-1">${k}: ${v}</span>`).join('');
+                    details = `<div class="mt-2"><small class="text-muted">Top values: </small>${tops}</div>`;
+                }
+                colHtml += `
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <strong>${col.name}</strong>${missingBadge}
+                                </div>
+                                <small class="text-muted">Type: ${col.dtype} &bull; ${col.unique} unique values</small>
+                                ${details}
+                            </div>
+                        </div>
+                    </div>`;
+            });
+            colHtml += '</div>';
+            document.getElementById('analyzeColumns').innerHTML = colHtml;
+
+            document.getElementById('analyzeResults').style.display = 'block';
+        } catch(e) {
+            alert('Network error: ' + e);
+        } finally {
+            document.getElementById('analyzeLoading').style.display = 'none';
+        }
+    }
 </script>
 </body>
 </html>
