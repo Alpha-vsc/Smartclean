@@ -1,63 +1,293 @@
-{% extends "base.html" %}
-{% block title %}Inscription — SmartClean{% endblock %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscription — SmartClean</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: #eef0f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', sans-serif;
+            padding: 1.5rem;
+        }
 
-{% block body %}
-<div class="auth-wrapper">
-    <div class="auth-card" style="max-width:520px;">
+        .register-box {
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+            max-width: 860px;
+            width: 100%;
+        }
 
-        <div class="text-center mb-4">
-            <i class="fas fa-broom fa-2x" style="color:#1a2a6c;"></i>
-            <div class="brand mt-2">SmartClean</div>
-            <p class="subtitle">Créer votre compte</p>
+        /* Panneau gauche */
+        .left-panel {
+            background-color: #1a2a6c;
+            color: #fff;
+            padding: 50px 40px;
+        }
+
+        .left-panel .app-name {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .left-panel .app-desc {
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.65);
+            margin-bottom: 40px;
+        }
+
+        .left-panel .benefit {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .left-panel .benefit i {
+            color: #fdbb2d;
+            font-size: 0.85rem;
+            margin-top: 3px;
+            width: 16px;
+            flex-shrink: 0;
+        }
+
+        .left-panel .benefit span {
+            font-size: 0.88rem;
+            color: rgba(255,255,255,0.85);
+            line-height: 1.4;
+        }
+
+        /* Panneau droit */
+        .right-panel {
+            padding: 45px 45px;
+        }
+
+        .right-panel h4 {
+            font-weight: 700;
+            color: #1a2a6c;
+            margin-bottom: 4px;
+        }
+
+        .right-panel .subtitle {
+            color: #888;
+            font-size: 0.88rem;
+            margin-bottom: 26px;
+        }
+
+        .form-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #444;
+            margin-bottom: 5px;
+        }
+
+        .form-control {
+            border-radius: 7px;
+            border: 1px solid #d1d5db;
+            font-size: 0.9rem;
+            padding: 9px 12px;
+        }
+
+        .form-control:focus {
+            border-color: #1a2a6c;
+            box-shadow: 0 0 0 3px rgba(26,42,108,0.1);
+        }
+
+        .form-text {
+            font-size: 0.78rem;
+            color: #aaa;
+        }
+
+        .btn-inscription {
+            background-color: #1a2a6c;
+            border: none;
+            color: #fff;
+            padding: 10px;
+            font-size: 0.92rem;
+            font-weight: 600;
+            border-radius: 7px;
+            width: 100%;
+            margin-top: 6px;
+        }
+
+        .btn-inscription:hover {
+            background-color: #152059;
+            color: #fff;
+        }
+
+        .separator {
+            text-align: center;
+            color: #bbb;
+            font-size: 0.82rem;
+            margin: 16px 0;
+            position: relative;
+        }
+
+        .separator::before,
+        .separator::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 42%;
+            height: 1px;
+            background: #e5e7eb;
+        }
+
+        .separator::before { left: 0; }
+        .separator::after  { right: 0; }
+
+        .btn-login {
+            border: 1px solid #d1d5db;
+            background: transparent;
+            color: #444;
+            padding: 9px;
+            font-size: 0.88rem;
+            border-radius: 7px;
+            width: 100%;
+        }
+
+        .btn-login:hover {
+            background-color: #f5f6fa;
+            border-color: #bbb;
+        }
+
+        @media (max-width: 767px) {
+            .left-panel { display: none; }
+            .right-panel { padding: 36px 28px; }
+        }
+    </style>
+</head>
+<body>
+<div class="register-box">
+    <div class="row g-0">
+
+        <!-- Gauche -->
+        <div class="col-lg-5 left-panel d-none d-lg-flex flex-column justify-content-center">
+            <div class="app-name">
+                <i class="fas fa-broom me-2" style="font-size:1.4rem;color:#fdbb2d;"></i>SmartClean
+            </div>
+            <p class="app-desc">Créez votre compte et commencez à traiter vos données.</p>
+
+            <div class="benefit">
+                <i class="fas fa-check-circle"></i>
+                <span>Import CSV, Excel, JSON et XML</span>
+            </div>
+            <div class="benefit">
+                <i class="fas fa-check-circle"></i>
+                <span>Nettoyage automatique en un clic</span>
+            </div>
+            <div class="benefit">
+                <i class="fas fa-check-circle"></i>
+                <span>Historique de vos traitements</span>
+            </div>
+            <div class="benefit">
+                <i class="fas fa-check-circle"></i>
+                <span>Analyse statistique par colonne</span>
+            </div>
+            <div class="benefit">
+                <i class="fas fa-check-circle"></i>
+                <span>Export vers plusieurs formats</span>
+            </div>
         </div>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <!-- Droite -->
+        <div class="col-lg-7 right-panel">
+            <h4>Créer un compte</h4>
+            <p class="subtitle">Remplissez le formulaire ci-dessous pour vous inscrire.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show py-2 small">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('auth.register') }}" id="registerForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="row g-3 mb-1">
+                    <div class="col-sm-6">
+                        <label class="form-label">Nom complet</label>
+                        <input type="text" name="full_name" class="form-control"
+                               placeholder="Prénom Nom">
                     </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <form method="POST" action="{{ url_for('auth.register') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-            <div class="row g-3 mb-3">
-                <div class="col-12">
-                    <label class="form-label">Nom complet</label>
-                    <input type="text" name="full_name" class="form-control"
-                           placeholder="Prénom Nom">
+                    <div class="col-sm-6">
+                        <label class="form-label">Nom d'utilisateur <span class="text-danger">*</span></label>
+                        <input type="text" name="username" class="form-control"
+                               placeholder="ex : alpha_diallo" required minlength="3">
+                        <div class="form-text">Lettres, chiffres et _ uniquement</div>
+                    </div>
                 </div>
-                <div class="col-12">
-                    <label class="form-label">Nom d'utilisateur <span class="text-danger">*</span></label>
-                    <input type="text" name="username" class="form-control"
-                           placeholder="lettres, chiffres, _ (min. 3 caractères)" required>
-                </div>
-                <div class="col-12">
+
+                <div class="mb-2 mt-2">
                     <label class="form-label">Adresse e-mail <span class="text-danger">*</span></label>
                     <input type="email" name="email" class="form-control"
                            placeholder="email@exemple.com" required>
                 </div>
-                <div class="col-12">
-                    <label class="form-label">Mot de passe <span class="text-danger">*</span></label>
-                    <input type="password" name="password" class="form-control"
-                           placeholder="6 caractères minimum" required>
+
+                <div class="row g-3 mb-2 mt-1">
+                    <div class="col-sm-6">
+                        <label class="form-label">Mot de passe <span class="text-danger">*</span></label>
+                        <input type="password" name="password" id="password" class="form-control"
+                               placeholder="6 caractères min." required minlength="6">
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label">Confirmer <span class="text-danger">*</span></label>
+                        <input type="password" id="confirm_password" class="form-control"
+                               placeholder="Répéter le mot de passe" required>
+                        <div id="pwError" class="text-danger small mt-1" style="display:none;">
+                            Les mots de passe ne correspondent pas.
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <button type="submit" class="btn btn-primary w-100 mb-3">
-                <i class="fas fa-user-plus me-2"></i>Créer mon compte
-            </button>
+                <button type="submit" class="btn btn-inscription">
+                    <i class="fas fa-user-plus me-2"></i>Créer mon compte
+                </button>
+            </form>
 
-            <p class="text-center text-muted small mb-0">
-                Déjà inscrit ?
-                <a href="{{ url_for('auth.login') }}">Se connecter</a>
-            </p>
-        </form>
+            <div class="separator">ou</div>
+
+            <a href="{{ url_for('auth.login') }}" class="btn btn-login">
+                <i class="fas fa-sign-in-alt me-2"></i>J'ai déjà un compte
+            </a>
+        </div>
 
     </div>
 </div>
-{% endblock %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const pw  = document.getElementById('password');
+const cpw = document.getElementById('confirm_password');
+const err = document.getElementById('pwError');
+
+cpw.addEventListener('input', () => {
+    const mismatch = cpw.value && pw.value !== cpw.value;
+    err.style.display = mismatch ? 'block' : 'none';
+    cpw.classList.toggle('is-invalid', mismatch);
+});
+
+document.getElementById('registerForm').addEventListener('submit', e => {
+    if (pw.value !== cpw.value) {
+        e.preventDefault();
+        err.style.display = 'block';
+        cpw.classList.add('is-invalid');
+    }
+});
+</script>
+</body>
+</html>
