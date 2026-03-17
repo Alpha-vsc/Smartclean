@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prévisualisation — SmartClean</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; }
+        .navbar { background-color: #1a2a6c; }
+        .card { border: none; box-shadow: 0 1px 6px rgba(0,0,0,.08); border-radius: 10px; }
+        .stat-box { background: #1a2a6c; color: #fff; border-radius: 10px; padding: 1.2rem; text-align: center; }
+        .stat-box .num  { font-size: 2rem; font-weight: 700; }
+        .stat-box .lbl  { font-size: .8rem; opacity: .8; text-transform: uppercase; }
+        .table thead th { background-color: #1a2a6c; color: #fff; font-weight: 500; }
+        .changes-box { border-left: 4px solid #198754; background: #f8f9fa; padding: 1rem 1.2rem; border-radius: 0 8px 8px 0; }
+        .changes-box li { padding: 3px 0; font-size: .9rem; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar mb-4">
+    <div class="container">
+        <a class="navbar-brand text-white fw-bold" href="{{ url_for('main.index') }}">
+            <i class="fas fa-broom me-2"></i>SmartClean
+        </a>
+        <a href="{{ url_for('main.index') }}" class="btn btn-outline-light btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+    </div>
+</nav>
+
+<div class="container pb-5">
+
+    <h4 class="fw-bold mb-4">
+        <i class="fas fa-eye me-2 text-primary"></i>Prévisualisation des données nettoyées
+    </h4>
+
+    <!-- Statistiques -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="stat-box">
+                <div class="num">{{ stats.original_rows }}</div>
+                <div class="lbl">Lignes d'origine</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-box">
+                <div class="num">{{ stats.cleaned_rows }}</div>
+                <div class="lbl">Lignes conservées</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-box" style="background: {% if stats.removed_rows > 0 %}#dc3545{% else %}#198754{% endif %};">
+                <div class="num">{{ stats.removed_rows }}</div>
+                <div class="lbl">Lignes supprimées</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-box" style="background:#6c757d;">
+                <div class="num">{{ stats.columns }}</div>
+                <div class="lbl">Colonnes</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transformations appliquées -->
+    {% if changes %}
+    <div class="card mb-4">
+        <div class="card-body">
+            <h6 class="fw-bold text-success mb-3">
+                <i class="fas fa-check-circle me-2"></i>Transformations appliquées
+            </h6>
+            <div class="changes-box">
+                <ul class="list-unstyled mb-0">
+                    {% for change in changes %}
+                    <li><i class="fas fa-arrow-right text-success me-2"></i>{{ change }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Aperçu avant / après -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h6 class="fw-bold mb-3"><i class="fas fa-table me-2"></i>Aperçu des données</h6>
+            <ul class="nav nav-tabs mb-3">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-after">
+                        <i class="fas fa-check text-success me-1"></i>Après nettoyage
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-before">
+                        <i class="fas fa-file me-1 text-muted"></i>Avant nettoyage
+                    </button>
+                </li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="tab-after">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover table-sm">
+                            <thead><tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+                            <tbody>
+                                {% for row in preview_data %}
+                                <tr>{% for v in row %}
+                                    <td {% if v == 'N/A' %}class="text-danger fst-italic"{% endif %}>{{ v }}</td>
+                                {% endfor %}</tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="tab-before">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover table-sm">
+                            <thead><tr>{% for col in before_cols %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+                            <tbody>
+                                {% for row in before_data %}
+                                <tr>{% for v in row %}
+                                    <td {% if v == 'N/A' %}class="text-danger fst-italic"{% endif %}>{{ v }}</td>
+                                {% endfor %}</tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Boutons d'action -->
+    <div class="d-flex gap-3 justify-content-center">
+        <a href="{{ url_for('main.download_preview') }}" class="btn btn-success btn-lg">
+            <i class="fas fa-download me-2"></i>Télécharger en {{ format.upper() }}
+        </a>
+        <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary btn-lg">
+            <i class="fas fa-times me-2"></i>Annuler
+        </a>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

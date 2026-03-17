@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversion — SmartClean</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; }
+        .navbar { background-color: #1a2a6c; }
+        .card { border: none; box-shadow: 0 1px 6px rgba(0,0,0,.08); border-radius: 10px; }
+        .btn-primary { background-color: #1a2a6c; border-color: #1a2a6c; }
+        .btn-primary:hover { background-color: #152059; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar mb-4">
+    <div class="container">
+        <a class="navbar-brand text-white fw-bold" href="{{ url_for('main.index') }}">
+            <i class="fas fa-broom me-2"></i>SmartClean
+        </a>
+        <a href="{{ url_for('main.index') }}" class="btn btn-outline-light btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+    </div>
+</nav>
+
+<div class="container pb-5" style="max-width:640px;">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <div class="card-body p-4">
+            <h5 class="fw-bold mb-1">
+                <i class="fas fa-retweet me-2 text-primary"></i>Convertir un fichier
+            </h5>
+            <p class="text-muted small mb-4">
+                Importez votre fichier et choisissez le format de sortie.
+            </p>
+
+            <form method="POST" enctype="multipart/form-data" id="convertForm">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Fichier source</label>
+                    <input type="file" name="file" class="form-control"
+                           accept=".csv,.xlsx,.xls,.json,.xml,.tsv,.parquet" required>
+                    <div class="form-text">CSV, Excel, JSON, XML, TSV, Parquet</div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-semibold">Format de sortie</label>
+                    <select name="target_format" class="form-select">
+                        <option value="csv">CSV</option>
+                        <option value="xlsx">Excel (XLSX)</option>
+                        <option value="json">JSON</option>
+                        <option value="xml">XML</option>
+                        <option value="tsv">TSV</option>
+                        <option value="parquet">Parquet</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100" id="submitBtn">
+                    <i class="fas fa-download me-2"></i>Convertir et télécharger
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <p class="text-center text-muted small mt-4">
+        Fichiers max. 50 Mo · Les données ne sont pas conservées sur le serveur
+    </p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.getElementById('convertForm').addEventListener('submit', function() {
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Conversion en cours...';
+});
+</script>
+</body>
+</html>

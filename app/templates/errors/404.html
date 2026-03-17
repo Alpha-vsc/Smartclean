@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}404 — SmartClean{% endblock %}
+{% block body %}
+<div class="auth-wrapper">
+    <div class="text-center">
+        <div style="font-size:5rem;font-weight:800;color:#1a2a6c;line-height:1;">404</div>
+        <h4 class="mt-3 mb-2">Page introuvable</h4>
+        <p class="text-muted">La page que vous cherchez n'existe pas ou a été déplacée.</p>
+        <a href="{{ url_for('main.index') }}" class="btn btn-primary mt-2">
+            <i class="fas fa-home me-2"></i>Retour à l'accueil
+        </a>
+    </div>
+</div>
+{% endblock %}

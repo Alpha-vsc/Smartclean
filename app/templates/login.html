@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Connexion — SmartClean{% endblock %}
+
+{% block body %}
+<div class="auth-wrapper">
+    <div class="auth-card">
+
+        <div class="text-center mb-4">
+            <i class="fas fa-broom fa-2x" style="color:#1a2a6c;"></i>
+            <div class="brand mt-2">SmartClean</div>
+            <p class="subtitle">Connectez-vous à votre espace</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('auth.login') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="mb-3">
+                <label class="form-label">Nom d'utilisateur</label>
+                <input type="text" name="username" class="form-control"
+                       placeholder="Votre nom d'utilisateur" required autofocus>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label">Mot de passe</label>
+                <input type="password" name="password" class="form-control"
+                       placeholder="Votre mot de passe" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 mb-3">
+                <i class="fas fa-sign-in-alt me-2"></i>Se connecter
+            </button>
+
+            <p class="text-center text-muted small mb-0">
+                Pas encore de compte ?
+                <a href="{{ url_for('auth.register') }}">Créer un compte</a>
+            </p>
+        </form>
+
+    </div>
+</div>
+{% endblock %}

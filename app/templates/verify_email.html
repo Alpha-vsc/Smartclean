@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Vérification e-mail — SmartClean{% endblock %}
+
+{% block body %}
+<div class="auth-wrapper">
+    <div class="auth-card text-center">
+
+        <i class="fas fa-envelope-open-text fa-2x mb-3" style="color:#1a2a6c;"></i>
+        <div class="brand">Vérifiez votre e-mail</div>
+        <p class="subtitle mt-1">
+            Un code à 6 chiffres a été envoyé à<br>
+            <strong>{{ email }}</strong>
+        </p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show text-start" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('auth.verify_email_page') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-4">
+                <input type="text" name="code" class="form-control text-center fw-bold fs-4"
+                       maxlength="6" placeholder="_ _ _ _ _ _"
+                       style="letter-spacing:.5rem;" required autofocus>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 mb-3">
+                <i class="fas fa-check me-2"></i>Valider le code
+            </button>
+        </form>
+
+        <form method="POST" action="{{ url_for('auth.resend_verification') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-link text-muted small">
+                Renvoyer le code
+            </button>
+        </form>
+
+        <a href="{{ url_for('auth.login') }}" class="d-block mt-2 small text-muted">
+            ← Retour à la connexion
+        </a>
+    </div>
+</div>
+{% endblock %}

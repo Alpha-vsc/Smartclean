@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartClean — Accueil</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .navbar { background-color: #1a2a6c; }
+        .navbar-brand { font-weight: 700; font-size: 1.3rem; }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed; top: 0; left: -260px;
+            width: 260px; height: 100%;
+            background: #fff;
+            border-right: 1px solid #e0e4ea;
+            z-index: 1050;
+            transition: left .25s ease;
+            display: flex; flex-direction: column;
+        }
+        .sidebar.open { left: 0; }
+        .sidebar-header {
+            background: #1a2a6c; color: #fff;
+            padding: 1.4rem 1.2rem;
+        }
+        .sidebar-header h5 { margin: 0; font-weight: 700; }
+        .sidebar-header p  { margin: 4px 0 0; font-size: .8rem; opacity: .7; }
+        .sidebar nav a {
+            display: flex; align-items: center; gap: 10px;
+            padding: .75rem 1.2rem;
+            color: #333; text-decoration: none;
+            font-size: .95rem;
+            border-left: 3px solid transparent;
+        }
+        .sidebar nav a:hover  { background: #f0f3ff; color: #1a2a6c; }
+        .sidebar nav a.active { background: #eef1fb; color: #1a2a6c; border-left-color: #1a2a6c; font-weight: 600; }
+        .sidebar nav a i { width: 20px; text-align: center; }
+        .sidebar-footer {
+            margin-top: auto; padding: .8rem 1.2rem;
+            border-top: 1px solid #e9ecef;
+            font-size: .78rem; color: #aaa;
+        }
+        .sidebar-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,.35); z-index: 1040;
+        }
+        .sidebar-overlay.show { display: block; }
+
+        /* Content */
+        .content { padding: 2rem 1.5rem; }
+
+        /* Cards */
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 1px 6px rgba(0,0,0,.08);
+        }
+        .card-section-title {
+            font-size: .8rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: .05em;
+            color: #6c757d; margin-bottom: 1rem;
+        }
+
+        /* Stat boxes (statistics page) */
+        .stat-box {
+            background: #fff; border-radius: 10px;
+            padding: 1.2rem 1rem; text-align: center;
+            box-shadow: 0 1px 6px rgba(0,0,0,.08);
+        }
+        .stat-box .num { font-size: 2rem; font-weight: 700; color: #1a2a6c; }
+        .stat-box .lbl { font-size: .75rem; color: #6c757d; text-transform: uppercase; }
+
+        /* Table */
+        .table thead th { background-color: #1a2a6c; color: #fff; font-weight: 500; }
+
+        /* Buttons */
+        .btn-primary  { background-color: #1a2a6c; border-color: #1a2a6c; }
+        .btn-primary:hover { background-color: #152059; }
+
+        /* Section switching */
+        .page-section { display: none; }
+        .page-section.active { display: block; }
+
+        /* File input */
+        input[type="file"]::file-selector-button {
+            background: #1a2a6c; color: #fff;
+            border: none; padding: 8px 16px;
+            border-radius: 5px; cursor: pointer;
+            margin-right: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Overlay -->
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h5><i class="fas fa-broom me-2"></i>SmartClean</h5>
+        <p>Nettoyage &amp; analyse de données</p>
+    </div>
+    <nav>
+        <a href="#" onclick="showPage('home')"       id="nav-home"       class="active"><i class="fas fa-house"></i>Accueil</a>
+        <a href="#" onclick="showPage('history')"    id="nav-history"            ><i class="fas fa-clock-rotate-left"></i>Historique</a>
+        <a href="#" onclick="showPage('statistics')" id="nav-statistics"         ><i class="fas fa-chart-bar"></i>Statistiques</a>
+        <a href="#" onclick="showPage('analyze')"    id="nav-analyze"            ><i class="fas fa-magnifying-glass-chart"></i>Analyse</a>
+        <a href="{{ url_for('convert.convert') }}"                               ><i class="fas fa-retweet"></i>Conversion</a>
+        <a href="{{ url_for('main.settings') }}"                                 ><i class="fas fa-gear"></i>Paramètres</a>
+        {% if user.role == 'admin' %}
+        <a href="{{ url_for('admin.dashboard') }}"                               ><i class="fas fa-user-shield"></i>Administration</a>
+        {% endif %}
+    </nav>
+    <div class="sidebar-footer">Alpha O. Diallo &amp; Aicha Diop — ISI DSIA</div>
+</div>
+
+<!-- Navbar -->
+<nav class="navbar navbar-dark">
+    <div class="container-fluid">
+        <button class="btn btn-link text-white p-0 me-3" onclick="toggleSidebar()" style="font-size:1.2rem;">
+            <i class="fas fa-bars"></i>
+        </button>
+        <span class="navbar-brand mb-0">SmartClean</span>
+        <div class="d-flex align-items-center gap-2 ms-auto">
+            <span class="text-white small">
+                <i class="fas fa-user me-1"></i>{{ user.full_name or user.username }}
+                {% if user.role == 'admin' %}<span class="badge bg-warning text-dark ms-1">Admin</span>{% endif %}
+            </span>
+            <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-light">
+                <i class="fas fa-sign-out-alt"></i>
+            </a>
+        </div>
+    </div>
+</nav>
+
+<!-- Main content -->
+<div class="content">
+
+    <!-- ── HOME ── -->
+    <div id="page-home" class="page-section active">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="row g-4">
+            <!-- Description -->
+            <div class="col-lg-5 d-none d-lg-flex flex-column justify-content-center">
+                <h4 class="fw-bold mb-1">SmartClean</h4>
+                <p class="text-muted mb-4">Pipeline automatisé de nettoyage et de normalisation de données.</p>
+                <ul class="list-unstyled">
+                    <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i><strong>Valeurs manquantes :</strong> remplissage médiane/mode</li>
+                    <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i><strong>Doublons :</strong> détection et suppression</li>
+                    <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i><strong>Outliers :</strong> méthode IQR</li>
+                    <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i><strong>Normalisation :</strong> mise à l'échelle Min-Max</li>
+                </ul>
+            </div>
+
+            <!-- Form -->
+            <div class="col-lg-7">
+                <div class="card">
+                    <div class="card-body p-4">
+                        <div class="card-section-title">Traitement de données</div>
+                        <form action="{{ url_for('main.preview') }}" method="post" enctype="multipart/form-data" id="cleanForm">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                            <div class="mb-3">
+                                <label class="form-label">Fichier (CSV, Excel, JSON, XML)</label>
+                                <input type="file" name="file" class="form-control" required
+                                       accept=".csv,.xlsx,.xls,.json,.xml">
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Opérations de nettoyage</label>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" name="missing_values" id="mv"
+                                                   {% if settings.default_missing %}checked{% endif %}>
+                                            <label class="form-check-label" for="mv">Valeurs manquantes</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" name="duplicates" id="dup"
+                                                   {% if settings.default_duplicates %}checked{% endif %}>
+                                            <label class="form-check-label" for="dup">Doublons</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" name="outliers" id="out"
+                                                   {% if settings.default_outliers %}checked{% endif %}>
+                                            <label class="form-check-label" for="out">Outliers (IQR)</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" name="normalize" id="norm"
+                                                   {% if settings.default_normalize %}checked{% endif %}>
+                                            <label class="form-check-label" for="norm">Normaliser</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label">Format de sortie</label>
+                                <select name="output_format" class="form-select">
+                                    <option value="csv"  {% if settings.default_format == 'csv'  %}selected{% endif %}>CSV</option>
+                                    <option value="xlsx" {% if settings.default_format == 'xlsx' %}selected{% endif %}>Excel (XLSX)</option>
+                                    <option value="json" {% if settings.default_format == 'json' %}selected{% endif %}>JSON</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-100" id="submitBtn">
+                                <i class="fas fa-play me-2"></i>Traiter et télécharger
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── HISTORIQUE ── -->
+    <div id="page-history" class="page-section">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold mb-0"><i class="fas fa-clock-rotate-left me-2 text-primary"></i>Historique</h5>
+            <button class="btn btn-sm btn-outline-danger" onclick="clearHistory()">
+                <i class="fas fa-trash me-1"></i>Vider
+            </button>
+        </div>
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="historyTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Fichier</th>
+                            <th>Lignes</th>
+                            <th>Opérations</th>
+                            <th>Format</th>
+                            <th>Durée</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <tr><td colspan="7" class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-secondary"></div>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── STATISTIQUES ── -->
+    <div id="page-statistics" class="page-section">
+        <h5 class="fw-bold mb-3"><i class="fas fa-chart-bar me-2 text-primary"></i>Statistiques</h5>
+        <div class="row g-3 mb-4" id="statsCards">
+            <div class="col-6 col-md-3"><div class="stat-box"><div class="num" id="stat-files">—</div><div class="lbl">Fichiers traités</div></div></div>
+            <div class="col-6 col-md-3"><div class="stat-box"><div class="num" id="stat-rows">—</div><div class="lbl">Lignes traitées</div></div></div>
+            <div class="col-6 col-md-3"><div class="stat-box"><div class="num" id="stat-time">—</div><div class="lbl">Temps moyen</div></div></div>
+            <div class="col-6 col-md-3"><div class="stat-box"><div class="num" id="stat-ops">—</div><div class="lbl">Opérations totales</div></div></div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="card-section-title">Utilisation par opération</div>
+                <div id="opsChart">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between small mb-1"><span>Valeurs manquantes</span><span id="op-missing-n">0</span></div>
+                        <div class="progress" style="height:8px;"><div class="progress-bar bg-success" id="op-missing-bar" style="width:0%"></div></div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between small mb-1"><span>Doublons</span><span id="op-dup-n">0</span></div>
+                        <div class="progress" style="height:8px;"><div class="progress-bar bg-info" id="op-dup-bar" style="width:0%"></div></div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between small mb-1"><span>Outliers</span><span id="op-out-n">0</span></div>
+                        <div class="progress" style="height:8px;"><div class="progress-bar bg-warning" id="op-out-bar" style="width:0%"></div></div>
+                    </div>
+                    <div>
+                        <div class="d-flex justify-content-between small mb-1"><span>Normalisation</span><span id="op-norm-n">0</span></div>
+                        <div class="progress" style="height:8px;"><div class="progress-bar bg-danger" id="op-norm-bar" style="width:0%"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── ANALYSE ── -->
+    <div id="page-analyze" class="page-section">
+        <h5 class="fw-bold mb-3"><i class="fas fa-magnifying-glass-chart me-2 text-primary"></i>Analyse de données</h5>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="text-muted small mb-3">Importez un fichier pour obtenir une analyse statistique détaillée de chaque colonne.</p>
+                <form id="analyzeForm" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="d-flex gap-2 flex-wrap align-items-center">
+                        <input type="file" name="file" id="analyzeFile" class="form-control"
+                               style="max-width:340px;" accept=".csv,.xlsx,.xls,.json,.xml">
+                        <button type="button" class="btn btn-primary" onclick="runAnalysis()">
+                            <i class="fas fa-play me-1"></i>Analyser
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="analyzeLoading" class="text-center py-4" style="display:none;">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2 text-muted small">Analyse en cours...</p>
+        </div>
+
+        <div id="analyzeResults" style="display:none;">
+            <div class="row g-3 mb-3" id="analyzeSummary"></div>
+            <div id="analyzeColumns"></div>
+        </div>
+    </div>
+
+</div><!-- /content -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('overlay').classList.toggle('show');
+}
+function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('overlay').classList.remove('show');
+}
+
+// ── Navigation ───────────────────────────────────────────────────────────────
+function showPage(name) {
+    document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.sidebar nav a').forEach(a => a.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    const link = document.getElementById('nav-' + name);
+    if (link) link.classList.add('active');
+    if (name === 'history')    loadHistory();
+    if (name === 'statistics') loadStatistics();
+    closeSidebar();
+    return false;
+}
+
+// ── CSRF token ───────────────────────────────────────────────────────────────
+const CSRF = "{{ csrf_token() }}";
+
+// ── Historique ───────────────────────────────────────────────────────────────
+async function loadHistory() {
+    try {
+        const data = await (await fetch('/history')).json();
+        const tbody = document.getElementById('historyTableBody');
+        if (!data.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Aucun traitement effectué.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map(item => {
+            const ops = [];
+            if (item.missing_values_applied) ops.push('<span class="badge bg-success">MV</span>');
+            if (item.duplicates_applied)     ops.push('<span class="badge bg-info">Dup</span>');
+            if (item.outliers_applied)       ops.push('<span class="badge bg-warning">Out</span>');
+            if (item.normalize_applied)      ops.push('<span class="badge bg-secondary">Norm</span>');
+            const d = new Date(item.processing_date);
+            return `<tr>
+                <td class="small">${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})}</td>
+                <td><strong>${item.filename}</strong><br><small class="text-muted">${item.file_size_kb} Ko</small></td>
+                <td class="small">${item.original_rows} → ${item.processed_rows}</td>
+                <td>${ops.join(' ') || '<span class="text-muted">—</span>'}</td>
+                <td><span class="badge bg-light text-dark border">${(item.output_format||'csv').toUpperCase()}</span></td>
+                <td class="small">${item.processing_time_seconds}s</td>
+                <td><button class="btn btn-sm btn-outline-danger" onclick="deleteHistoryItem(${item.id})">
+                    <i class="fas fa-trash"></i></button></td>
+            </tr>`;
+        }).join('');
+    } catch(e) { console.error(e); }
+}
+
+async function deleteHistoryItem(id) {
+    if (!confirm('Supprimer cet élément ?')) return;
+    await fetch(`/delete_history/${id}`, { method: 'DELETE', headers: {'X-CSRF-Token': CSRF} });
+    loadHistory();
+}
+
+async function clearHistory() {
+    if (!confirm('Vider tout l\'historique ? Cette action est irréversible.')) return;
+    await fetch('/clear_history', { method: 'POST', headers: {'X-CSRF-Token': CSRF} });
+    loadHistory();
+}
+
+// ── Statistiques ─────────────────────────────────────────────────────────────
+async function loadStatistics() {
+    try {
+        const s = await (await fetch('/statistics')).json();
+        document.getElementById('stat-files').textContent = s.total_files;
+        document.getElementById('stat-rows').textContent  = s.total_rows.toLocaleString('fr-FR');
+        document.getElementById('stat-time').textContent  = s.avg_processing_time + 's';
+        const total = Object.values(s.operations).reduce((a,b) => a+b, 0);
+        document.getElementById('stat-ops').textContent   = total;
+
+        const max = Math.max(...Object.values(s.operations), 1);
+        const setBar = (id, val) => {
+            document.getElementById(id+'-n').textContent  = val;
+            document.getElementById(id+'-bar').style.width = (val/max*100) + '%';
+        };
+        setBar('op-missing', s.operations.missing_values);
+        setBar('op-dup',     s.operations.duplicates);
+        setBar('op-out',     s.operations.outliers);
+        setBar('op-norm',    s.operations.normalize);
+    } catch(e) { console.error(e); }
+}
+
+// ── Formulaire ───────────────────────────────────────────────────────────────
+document.getElementById('cleanForm').addEventListener('submit', function() {
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Traitement...';
+});
+
+window.addEventListener('pageshow', function() {
+    const btn = document.getElementById('submitBtn');
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play me-2"></i>Traiter et télécharger';
+    }
+});
+
+// ── Analyse ───────────────────────────────────────────────────────────────────
+async function runAnalysis() {
+    const file = document.getElementById('analyzeFile');
+    if (!file.files.length) { alert('Veuillez sélectionner un fichier.'); return; }
+
+    document.getElementById('analyzeLoading').style.display = 'block';
+    document.getElementById('analyzeResults').style.display = 'none';
+
+    const fd = new FormData(document.getElementById('analyzeForm'));
+    fd.set('file', file.files[0]);
+
+    try {
+        const data = await (await fetch('/analyze', { method: 'POST', body: fd })).json();
+        if (data.error) { alert('Erreur : ' + data.error); return; }
+
+        // Résumé
+        document.getElementById('analyzeSummary').innerHTML = `
+            <div class="col-6 col-md-3"><div class="stat-box"><div class="num">${data.rows}</div><div class="lbl">Lignes</div></div></div>
+            <div class="col-6 col-md-3"><div class="stat-box"><div class="num">${data.cols}</div><div class="lbl">Colonnes</div></div></div>
+            <div class="col-6 col-md-3"><div class="stat-box"><div class="num" style="color:${data.total_missing>0?'#dc3545':'#198754'}">${data.total_missing}</div><div class="lbl">Valeurs manquantes</div></div></div>
+            <div class="col-6 col-md-3"><div class="stat-box"><div class="num" style="color:${data.duplicates>0?'#e67e22':'#198754'}">${data.duplicates}</div><div class="lbl">Doublons</div></div></div>`;
+
+        // Détail colonnes
+        document.getElementById('analyzeColumns').innerHTML = '<div class="row g-3">' + data.columns.map(col => {
+            const badge = col.missing > 0
+                ? `<span class="badge bg-danger ms-1">${col.missing_pct}% manquant</span>`
+                : `<span class="badge bg-success ms-1">Complet</span>`;
+            let detail = '';
+            if (col.min !== undefined) {
+                detail = `<div class="row text-center mt-2 small">
+                    <div class="col"><div class="text-muted">Min</div><strong>${col.min}</strong></div>
+                    <div class="col"><div class="text-muted">Max</div><strong>${col.max}</strong></div>
+                    <div class="col"><div class="text-muted">Moy.</div><strong>${col.mean}</strong></div>
+                    <div class="col"><div class="text-muted">Méd.</div><strong>${col.median}</strong></div>
+                    <div class="col"><div class="text-muted">Éc-T</div><strong>${col.std}</strong></div>
+                </div>`;
+            } else if (col.top_values) {
+                const tops = Object.entries(col.top_values)
+                    .map(([k,v]) => `<span class="badge bg-light text-dark border me-1">${k}: ${v}</span>`).join('');
+                detail = `<div class="mt-2 small"><span class="text-muted">Top : </span>${tops}</div>`;
+            }
+            return `<div class="col-md-6">
+                <div class="card">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>${col.name}</strong>${badge}
+                        </div>
+                        <small class="text-muted">Type : ${col.dtype} · ${col.unique} valeurs uniques</small>
+                        ${detail}
+                    </div>
+                </div>
+            </div>`;
+        }).join('') + '</div>';
+
+        document.getElementById('analyzeResults').style.display = 'block';
+    } catch(e) {
+        alert('Erreur réseau : ' + e);
+    } finally {
+        document.getElementById('analyzeLoading').style.display = 'none';
+    }
+}
+</script>
+</body>
+</html>

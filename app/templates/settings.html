@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paramètres — SmartClean</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; }
+        .navbar { background-color: #1a2a6c; }
+        .card { border: none; box-shadow: 0 1px 6px rgba(0,0,0,.08); border-radius: 10px; }
+        .card-title { color: #1a2a6c; font-size: 1rem; font-weight: 600; border-bottom: 2px solid #e9ecef; padding-bottom: .6rem; margin-bottom: 1.2rem; }
+        .btn-primary { background-color: #1a2a6c; border-color: #1a2a6c; }
+        .btn-primary:hover { background-color: #152059; }
+        .form-check-input:checked { background-color: #1a2a6c; border-color: #1a2a6c; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar mb-4">
+    <div class="container">
+        <a class="navbar-brand text-white fw-bold" href="{{ url_for('main.index') }}">
+            <i class="fas fa-broom me-2"></i>SmartClean
+        </a>
+        <a href="{{ url_for('main.index') }}" class="btn btn-outline-light btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+    </div>
+</nav>
+
+<div class="container pb-5" style="max-width:760px;">
+
+    <h4 class="fw-bold mb-4">
+        <i class="fas fa-gear me-2 text-primary"></i>Paramètres
+    </h4>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Préférences générales -->
+    <form method="POST" action="{{ url_for('main.save_settings') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="card-title"><i class="fas fa-sliders me-2"></i>Général</div>
+
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" name="always_preview" id="always_preview"
+                           {% if settings.always_preview %}checked{% endif %}>
+                    <label class="form-check-label" for="always_preview">Afficher la prévisualisation avant téléchargement</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" name="save_history" id="save_history"
+                           {% if settings.save_history %}checked{% endif %}>
+                    <label class="form-check-label" for="save_history">Enregistrer l'historique des traitements</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="confirm_delete" id="confirm_delete"
+                           {% if settings.confirm_delete %}checked{% endif %}>
+                    <label class="form-check-label" for="confirm_delete">Demander confirmation avant suppression</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="card-title"><i class="fas fa-cogs me-2"></i>Options de nettoyage par défaut</div>
+                <p class="text-muted small mb-3">Ces options seront pré-cochées lors de l'upload d'un fichier.</p>
+
+                <div class="row">
+                    <div class="col-6">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="default_missing" id="def_missing"
+                                   {% if settings.default_missing %}checked{% endif %}>
+                            <label class="form-check-label" for="def_missing">Valeurs manquantes</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="default_duplicates" id="def_dup"
+                                   {% if settings.default_duplicates %}checked{% endif %}>
+                            <label class="form-check-label" for="def_dup">Supprimer les doublons</label>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="default_outliers" id="def_out"
+                                   {% if settings.default_outliers %}checked{% endif %}>
+                            <label class="form-check-label" for="def_out">Supprimer les outliers</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="default_normalize" id="def_norm"
+                                   {% if settings.default_normalize %}checked{% endif %}>
+                            <label class="form-check-label" for="def_norm">Normaliser les données</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="card-title"><i class="fas fa-palette me-2"></i>Affichage</div>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label class="form-label">Format d'export par défaut</label>
+                        <select class="form-select" name="default_format">
+                            <option value="csv"  {% if settings.default_format == 'csv'  %}selected{% endif %}>CSV</option>
+                            <option value="xlsx" {% if settings.default_format == 'xlsx' %}selected{% endif %}>Excel (XLSX)</option>
+                            <option value="json" {% if settings.default_format == 'json' %}selected{% endif %}>JSON</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label">Lignes dans l'aperçu</label>
+                        <select class="form-select" name="preview_rows">
+                            <option value="5"  {% if settings.preview_rows == 5  %}selected{% endif %}>5 lignes</option>
+                            <option value="10" {% if settings.preview_rows == 10 %}selected{% endif %}>10 lignes</option>
+                            <option value="20" {% if settings.preview_rows == 20 %}selected{% endif %}>20 lignes</option>
+                            <option value="50" {% if settings.preview_rows == 50 %}selected{% endif %}>50 lignes</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary mb-4">
+            <i class="fas fa-save me-2"></i>Enregistrer les paramètres
+        </button>
+    </form>
+
+    <!-- Changer mot de passe -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="card-title"><i class="fas fa-lock me-2"></i>Changer le mot de passe</div>
+            <form method="POST" action="{{ url_for('auth.change_password') }}" style="max-width:420px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label class="form-label">Mot de passe actuel</label>
+                    <input type="password" name="current_password" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Nouveau mot de passe</label>
+                    <input type="password" name="new_password" id="new_pw" class="form-control" required minlength="6">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Confirmer le nouveau mot de passe</label>
+                    <input type="password" name="confirm_password" id="confirm_pw" class="form-control" required>
+                    <div id="pw-error" class="text-danger small mt-1" style="display:none">Les mots de passe ne correspondent pas.</div>
+                </div>
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-key me-2"></i>Mettre à jour
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Vérification e-mail -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="card-title">
+                <i class="fas fa-envelope me-2"></i>Vérification e-mail
+                {% if user.email_verified %}
+                    <span class="badge bg-success ms-1">Vérifié</span>
+                {% else %}
+                    <span class="badge bg-warning text-dark ms-1">Non vérifié</span>
+                {% endif %}
+            </div>
+            <p class="text-muted small mb-3">Adresse : <strong>{{ user.email }}</strong></p>
+            {% if not user.email_verified %}
+            <form method="POST" action="{{ url_for('auth.send_verification_email_route') }}" class="d-inline me-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-paper-plane me-1"></i>Envoyer un code
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('auth.confirm_verification') }}" class="mt-3 d-inline-flex gap-2 align-items-center">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="text" name="verification_code" class="form-control form-control-sm"
+                       placeholder="Code à 6 chiffres" maxlength="6" style="width:160px;">
+                <button class="btn btn-success btn-sm">Confirmer</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Vérification côté client que les mots de passe correspondent
+document.querySelector('#confirm_pw').addEventListener('input', function() {
+    const err = document.getElementById('pw-error');
+    err.style.display = this.value !== document.getElementById('new_pw').value ? 'block' : 'none';
+});
+</script>
+</body>
+</html>

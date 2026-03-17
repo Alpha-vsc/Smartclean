@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration — SmartClean</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; }
+        .navbar { background-color: #1a2a6c; }
+        .card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,.08); }
+        .card-section-title { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #6c757d; margin-bottom: 1rem; }
+        .stat-box { background: #fff; border-radius: 10px; padding: 1.2rem; box-shadow: 0 1px 6px rgba(0,0,0,.08); border-left: 4px solid #1a2a6c; }
+        .stat-box .num { font-size: 1.9rem; font-weight: 700; color: #1a2a6c; }
+        .stat-box .lbl { font-size: .75rem; color: #6c757d; text-transform: uppercase; }
+        .stat-box.green  { border-left-color: #198754; }
+        .stat-box.green .num { color: #198754; }
+        .stat-box.orange { border-left-color: #e67e22; }
+        .stat-box.orange .num { color: #e67e22; }
+        .table thead th { background-color: #1a2a6c; color: #fff; font-weight: 500; }
+        .activity-item { border-left: 3px solid #dee2e6; padding: .5rem .8rem; margin-bottom: .5rem; }
+        .btn-primary { background-color: #1a2a6c; border-color: #1a2a6c; }
+        .user-avatar { width: 34px; height: 34px; border-radius: 50%; background: #1a2a6c; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark mb-4">
+    <div class="container-fluid">
+        <span class="navbar-brand fw-bold">
+            <i class="fas fa-user-shield me-2"></i>Administration
+        </span>
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-white small">{{ user.full_name or user.username }}</span>
+            <a href="{{ url_for('main.index') }}" class="btn btn-sm btn-outline-light">
+                <i class="fas fa-home me-1"></i>Accueil
+            </a>
+            <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-light">
+                <i class="fas fa-sign-out-alt"></i>
+            </a>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid px-4 pb-5">
+
+    <!-- Cartes stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="stat-box">
+                <div class="num" id="total-users">—</div>
+                <div class="lbl">Utilisateurs actifs</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-box green">
+                <div class="num" id="active-users">—</div>
+                <div class="lbl">Actifs (7 jours)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-box orange">
+                <div class="num" id="total-ops">—</div>
+                <div class="lbl">Traitements totaux</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-box">
+                <div class="num" id="ops-today">—</div>
+                <div class="lbl">Traitements aujourd'hui</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <!-- Graphique utilisation -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <div class="card-section-title">Activité — 30 derniers jours</div>
+                    <canvas id="usageChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+        <!-- Top utilisateurs -->
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="card-section-title">Top utilisateurs</div>
+                    <div id="topUsers"><p class="text-muted small">Chargement...</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gestion utilisateurs -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="card-section-title mb-0">Gestion des utilisateurs</div>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadStats()">
+                    <i class="fas fa-sync me-1"></i>Actualiser
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Utilisateur</th>
+                            <th>E-mail</th>
+                            <th>Rôle</th>
+                            <th>Inscription</th>
+                            <th>Dernière connexion</th>
+                            <th>Statut</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTable">
+                        <tr><td colspan="7" class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-secondary"></div>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activité récente -->
+    <div class="card">
+        <div class="card-body">
+            <div class="card-section-title">Activité récente</div>
+            <div id="recentActivity"><p class="text-muted small">Chargement...</p></div>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+let chart = null;
+
+async function loadStats() {
+    const data = await (await fetch('/admin/statistics')).json();
+
+    document.getElementById('total-users').textContent = data.total_users;
+    document.getElementById('active-users').textContent = data.active_users;
+    document.getElementById('total-ops').textContent   = data.total_api_calls;
+    document.getElementById('ops-today').textContent   = data.api_calls_today;
+
+    // Graphique
+    const usage = [...data.usage_by_day].reverse();
+    const ctx   = document.getElementById('usageChart').getContext('2d');
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: usage.map(d => new Date(d.date).toLocaleDateString('fr-FR', {day:'2-digit', month:'short'})),
+            datasets: [{
+                label: 'Traitements',
+                data: usage.map(d => d.count),
+                backgroundColor: 'rgba(26,42,108,.7)',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+
+    // Top users
+    document.getElementById('topUsers').innerHTML = data.top_users.length
+        ? data.top_users.map((u, i) => `
+            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary">${i+1}</span>
+                    <div>
+                        <div class="small fw-semibold">${u.full_name || u.username}</div>
+                        <div class="text-muted" style="font-size:.75rem;">@${u.username}</div>
+                    </div>
+                </div>
+                <span class="badge bg-light text-dark border">${u.count}</span>
+            </div>`).join('')
+        : '<p class="text-muted small">Aucune donnée.</p>';
+
+    // Table utilisateurs
+    document.getElementById('usersTable').innerHTML = data.users_list.map(u => {
+        const initials = (u.full_name || u.username).slice(0,2).toUpperCase();
+        const created  = u.created_at  ? new Date(u.created_at).toLocaleDateString('fr-FR')  : '—';
+        const lastLog  = u.last_login  ? new Date(u.last_login).toLocaleDateString('fr-FR')   : '—';
+        const actions  = u.role !== 'admin' ? `
+            <button class="btn btn-sm btn-${u.is_active ? 'warning' : 'success'} me-1"
+                    onclick="toggleUser(${u.id}, ${u.is_active})"
+                    title="${u.is_active ? 'Désactiver' : 'Activer'}">
+                <i class="fas fa-${u.is_active ? 'ban' : 'check'}"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger"
+                    onclick="deleteUser(${u.id}, '${u.username}')"
+                    title="Supprimer">
+                <i class="fas fa-trash"></i>
+            </button>` : '<span class="text-muted">—</span>';
+        return `<tr>
+            <td>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="user-avatar">${initials}</div>
+                    <div>
+                        <div class="small fw-semibold">${u.full_name || u.username}</div>
+                        <div class="text-muted" style="font-size:.75rem;">@${u.username}</div>
+                    </div>
+                </div>
+            </td>
+            <td class="small">${u.email}</td>
+            <td>${u.role === 'admin'
+                ? '<span class="badge bg-warning text-dark">Admin</span>'
+                : '<span class="badge bg-secondary">User</span>'}</td>
+            <td class="small">${created}</td>
+            <td class="small">${lastLog}</td>
+            <td>${u.is_active
+                ? '<span class="badge bg-success">Actif</span>'
+                : '<span class="badge bg-danger">Inactif</span>'}</td>
+            <td>${actions}</td>
+        </tr>`;
+    }).join('');
+
+    // Activité récente
+    const ACTION_LABELS = {
+        LOGIN: { icon:'sign-in-alt', cls:'success', lbl:'Connexion' },
+        LOGOUT: { icon:'sign-out-alt', cls:'secondary', lbl:'Déconnexion' },
+        PREVIEW: { icon:'eye', cls:'primary', lbl:'Traitement' },
+        ANALYZE: { icon:'chart-bar', cls:'info', lbl:'Analyse' },
+        CONVERT: { icon:'retweet', cls:'warning', lbl:'Conversion' },
+        REGISTER: { icon:'user-plus', cls:'success', lbl:'Inscription' },
+        DEFAULT: { icon:'circle', cls:'secondary', lbl:'' }
+    };
+    document.getElementById('recentActivity').innerHTML = data.recent_activity.map(a => {
+        const meta = ACTION_LABELS[a.action] || ACTION_LABELS.DEFAULT;
+        const time = a.timestamp ? new Date(a.timestamp).toLocaleString('fr-FR') : '';
+        return `<div class="activity-item">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="small">
+                    <i class="fas fa-${meta.icon} text-${meta.cls} me-1"></i>
+                    <strong>${a.username}</strong>
+                    <span class="text-muted"> — ${meta.lbl || a.action}</span>
+                    ${a.details ? `<div class="text-muted ms-3" style="font-size:.8rem;">${a.details}</div>` : ''}
+                </div>
+                <span class="text-muted small ms-3 text-nowrap">${time}</span>
+            </div>
+        </div>`;
+    }).join('') || '<p class="text-muted small">Aucune activité récente.</p>';
+}
+
+async function toggleUser(id, active) {
+    if (!confirm(active ? 'Désactiver cet utilisateur ?' : 'Activer cet utilisateur ?')) return;
+    const r = await fetch(`/admin/toggle_user/${id}`, { method: 'POST' });
+    const d = await r.json();
+    if (d.success) loadStats(); else alert('Erreur : ' + d.error);
+}
+
+async function deleteUser(id, username) {
+    if (!confirm(`Supprimer définitivement l'utilisateur « ${username} » ?`)) return;
+    const r = await fetch(`/admin/delete_user/${id}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.success) loadStats(); else alert('Erreur : ' + d.error);
+}
+
+// Chargement initial + auto-refresh
+loadStats();
+setInterval(loadStats, 60000);
+</script>
+</body>
+</html>
